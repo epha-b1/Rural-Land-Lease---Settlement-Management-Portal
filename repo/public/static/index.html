@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rural Land Lease & Settlement Portal</title>
+    <link rel="stylesheet" href="/static/layui/css/layui.css">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="stylesheet" href="/static/css/auth.css">
+</head>
+<body class="layui-layout-body">
+    <div class="layui-layout layui-layout-admin">
+        <!-- Header -->
+        <div class="layui-header">
+            <div class="layui-logo">
+                <span class="portal-title">Rural Land Lease Portal</span>
+            </div>
+            <ul class="layui-nav layui-layout-right">
+                <li class="layui-nav-item">
+                    <a href="javascript:;" id="system-status">
+                        <i class="layui-icon layui-icon-loading layui-anim layui-anim-rotate layui-anim-loop" id="status-icon"></i>
+                        <span id="status-text">Checking...</span>
+                    </a>
+                </li>
+                <li class="layui-nav-item" id="nav-user">
+                    <a href="javascript:;"><span id="nav-username">User</span></a>
+                    <dl class="layui-nav-child">
+                        <dd><a href="javascript:;" id="nav-role-display">Role: -</a></dd>
+                        <dd><a href="javascript:;" id="btn-logout">Sign Out</a></dd>
+                    </dl>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="layui-side layui-bg-black">
+            <div class="layui-side-scroll">
+                <ul class="layui-nav layui-nav-tree" lay-filter="side-nav">
+                    <li class="layui-nav-item layui-nav-itemed">
+                        <a href="javascript:;">System</a>
+                        <dl class="layui-nav-child">
+                            <dd class="layui-this"><a href="javascript:;" data-page="dashboard">Dashboard</a></dd>
+                            <dd><a href="javascript:;" data-page="health">System Health</a></dd>
+                        </dl>
+                    </li>
+                    <!-- Entity profiles -->
+                    <li class="layui-nav-item">
+                        <a href="javascript:;">Profiles</a>
+                        <dl class="layui-nav-child">
+                            <dd><a href="javascript:;" data-page="entities">Entity List</a></dd>
+                            <dd><a href="javascript:;" data-page="entity-create">New Entity</a></dd>
+                        </dl>
+                    </li>
+                    <!-- Contracts & Invoices -->
+                    <li class="layui-nav-item">
+                        <a href="javascript:;">Finance</a>
+                        <dl class="layui-nav-child">
+                            <dd><a href="javascript:;" data-page="contracts">Contracts</a></dd>
+                            <dd><a href="javascript:;" data-page="contract-create">New Contract</a></dd>
+                            <dd><a href="javascript:;" data-page="invoices">Invoices</a></dd>
+                            <dd><a href="javascript:;" data-page="payments">Record Payment</a></dd>
+                            <dd><a href="javascript:;" data-page="exports">Exports</a></dd>
+                        </dl>
+                    </li>
+                    <!-- Messaging -->
+                    <li class="layui-nav-item">
+                        <a href="javascript:;">Messages</a>
+                        <dl class="layui-nav-child">
+                            <dd><a href="javascript:;" data-page="messaging">Conversations</a></dd>
+                        </dl>
+                    </li>
+                    <!-- Admin-only nav section -->
+                    <li class="layui-nav-item admin-only layui-hide" id="nav-admin">
+                        <a href="javascript:;">Admin</a>
+                        <dl class="layui-nav-child">
+                            <dd><a href="javascript:;" data-page="mfa">MFA Settings</a></dd>
+                            <dd><a href="javascript:;" data-page="verifications">Verifications</a></dd>
+                            <dd><a href="javascript:;" data-page="risk-rules">Risk Keywords</a></dd>
+                            <dd><a href="javascript:;" data-page="audit-logs">Audit Log</a></dd>
+                            <dd><a href="javascript:;" data-page="admin-jobs">Background Jobs</a></dd>
+                            <dd><a href="javascript:;" data-page="admin-config">System Config</a></dd>
+                        </dl>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="layui-body" id="app-body">
+            <div class="app-content">
+                <!-- Dashboard / landing view -->
+                <div id="page-dashboard" class="page-view active">
+                    <div class="layui-row layui-col-space15">
+                        <div class="layui-col-md12">
+                            <div class="layui-card">
+                                <div class="layui-card-header">System Status</div>
+                                <div class="layui-card-body">
+                                    <div id="health-status-panel">
+                                        <div class="health-loading" id="health-loading">
+                                            <i class="layui-icon layui-icon-loading layui-anim layui-anim-rotate layui-anim-loop"></i>
+                                            <span>Connecting to server...</span>
+                                        </div>
+                                        <div class="health-success layui-hide" id="health-success">
+                                            <i class="layui-icon layui-icon-ok-circle health-icon-ok"></i>
+                                            <span>System is online and healthy</span>
+                                            <div class="health-detail" id="health-detail"></div>
+                                        </div>
+                                        <div class="health-error layui-hide" id="health-error">
+                                            <i class="layui-icon layui-icon-close-fill health-icon-err"></i>
+                                            <span>System is unreachable</span>
+                                            <div class="health-detail" id="health-error-detail"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- User info card -->
+                        <div class="layui-col-md12">
+                            <div class="layui-card">
+                                <div class="layui-card-header">Your Account</div>
+                                <div class="layui-card-body" id="user-info-panel">
+                                    <table class="layui-table">
+                                        <tbody id="user-info-body">
+                                            <tr><td colspan="2">Loading...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Health detail page -->
+                <div id="page-health" class="page-view">
+                    <div class="layui-row layui-col-space15">
+                        <div class="layui-col-md12">
+                            <div class="layui-card">
+                                <div class="layui-card-header">
+                                    Health Check Details
+                                    <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh-health" style="float:right;margin-top:-3px;">
+                                        <i class="layui-icon layui-icon-refresh"></i> Refresh
+                                    </button>
+                                </div>
+                                <div class="layui-card-body">
+                                    <table class="layui-table" id="health-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Property</th>
+                                                <th>Value</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="health-table-body">
+                                            <tr><td colspan="2">Loading...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MFA Settings page (admin only) -->
+                <div id="page-mfa" class="page-view">
+                    <div class="layui-row layui-col-space15">
+                        <div class="layui-col-md12">
+                            <div class="layui-card">
+                                <div class="layui-card-header">MFA (Two-Factor Authentication)</div>
+                                <div class="layui-card-body">
+                                    <div id="mfa-status-panel">
+                                        <div id="mfa-not-enrolled">
+                                            <p>MFA is not enabled on your account. Enable it for additional security.</p>
+                                            <button class="layui-btn" id="btn-mfa-enroll">Enable MFA</button>
+                                        </div>
+                                        <div id="mfa-enroll-step" class="layui-hide">
+                                            <p>Scan the secret below with your authenticator app (Google Authenticator, Authy, etc.):</p>
+                                            <div class="mfa-secret" id="mfa-secret-display"></div>
+                                            <p>Then enter the 6-digit code to verify:</p>
+                                            <div class="layui-form-item" style="margin-top:10px;">
+                                                <input type="text" id="mfa-verify-code" maxlength="6" pattern="[0-9]{6}"
+                                                       placeholder="Enter 6-digit code" class="layui-input" style="width:200px;display:inline-block;">
+                                                <button class="layui-btn" id="btn-mfa-verify">Verify</button>
+                                            </div>
+                                        </div>
+                                        <div id="mfa-enabled" class="layui-hide">
+                                            <div class="health-success">
+                                                <i class="layui-icon layui-icon-ok-circle health-icon-ok"></i>
+                                                <span>MFA is enabled on your account</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Entity List page -->
+                <div id="page-entities" class="page-view">
+                    <div class="layui-row layui-col-space15">
+                        <div class="layui-col-md12">
+                            <div class="layui-card">
+                                <div class="layui-card-header">
+                                    Entity Profiles
+                                    <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh-entities" style="float:right;margin-top:-3px;">
+                                        <i class="layui-icon layui-icon-refresh"></i> Refresh
+                                    </button>
+                                </div>
+                                <div class="layui-card-body">
+                                    <div id="entity-list-loading">Loading entities...</div>
+                                    <table class="layui-table layui-hide" id="entity-table">
+                                        <thead><tr>
+                                            <th>ID</th><th>Type</th><th>Name</th><th>Address</th><th>Status</th><th>Actions</th>
+                                        </tr></thead>
+                                        <tbody id="entity-table-body"></tbody>
+                                    </table>
+                                    <div id="entity-scope-error" class="health-error layui-hide">
+                                        <i class="layui-icon layui-icon-close-fill health-icon-err"></i>
+                                        <span id="entity-scope-error-msg">Access denied</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Entity Create page -->
+                <div id="page-entity-create" class="page-view">
+                    <div class="layui-row layui-col-space15">
+                        <div class="layui-col-md8">
+                            <div class="layui-card">
+                                <div class="layui-card-header">Create Entity Profile</div>
+                                <div class="layui-card-body">
+                                    <form class="layui-form" id="entity-create-form">
+                                        <div class="layui-form-item">
+                                            <label class="layui-form-label">Type</label>
+                                            <div class="layui-input-block">
+                                                <select name="entity_type" id="ec-type" lay-verify="required">
+                                                    <option value="farmer">Farmer</option>
+                                                    <option value="enterprise">Enterprise</option>
+                                                    <option value="collective">Village Collective</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <label class="layui-form-label">Name</label>
+                                            <div class="layui-input-block">
+                                                <input type="text" name="display_name" required placeholder="Entity name" class="layui-input">
+                                            </div>
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <label class="layui-form-label">Address</label>
+                                            <div class="layui-input-block">
+                                                <input type="text" name="address" placeholder="Address" class="layui-input">
+                                            </div>
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <label class="layui-form-label">ID Last 4</label>
+                                            <div class="layui-input-block">
+                                                <input type="text" name="id_last4" maxlength="4" placeholder="Last 4 of ID" class="layui-input">
+                                            </div>
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <label class="layui-form-label">License Last 4</label>
+                                            <div class="layui-input-block">
+                                                <input type="text" name="license_last4" maxlength="4" placeholder="Last 4 of license" class="layui-input">
+                                            </div>
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <div class="layui-input-block">
+                                                <button type="submit" class="layui-btn" lay-submit lay-filter="createEntity">Create</button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                    <div id="entity-create-dup-warning" class="auth-message info layui-hide">
+                                        Potential duplicate detected! Please review existing profiles.
+                                    </div>
+                                    <div id="entity-create-msg" class="auth-message layui-hide"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Verifications page (admin) -->
+                <div id="page-verifications" class="page-view">
+                    <div class="layui-row layui-col-space15">
+                        <div class="layui-col-md12">
+                            <div class="layui-card">
+                                <div class="layui-card-header">
+                                    Verification Requests
+                                    <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh-verifications" style="float:right;margin-top:-3px;">
+                                        <i class="layui-icon layui-icon-refresh"></i> Refresh
+                                    </button>
+                                </div>
+                                <div class="layui-card-body">
+                                    <table class="layui-table" id="verif-table">
+                                        <thead><tr>
+                                            <th>ID</th><th>User ID</th><th>Status</th><th>Submitted</th><th>Actions</th>
+                                        </tr></thead>
+                                        <tbody id="verif-table-body">
+                                            <tr><td colspan="5">Loading...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Contracts list -->
+                <div id="page-contracts" class="page-view">
+                    <div class="layui-row layui-col-space15"><div class="layui-col-md12"><div class="layui-card">
+                        <div class="layui-card-header">Contracts <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh-contracts" style="float:right;margin-top:-3px;">Refresh</button></div>
+                        <div class="layui-card-body">
+                            <table class="layui-table"><thead><tr><th>ID</th><th>Profile</th><th>Period</th><th>Rent</th><th>Freq</th><th>Status</th></tr></thead>
+                            <tbody id="contracts-tbody"><tr><td colspan="6">Loading...</td></tr></tbody></table>
+                        </div>
+                    </div></div></div>
+                </div>
+
+                <!-- Contract create -->
+                <div id="page-contract-create" class="page-view">
+                    <div class="layui-row layui-col-space15"><div class="layui-col-md8"><div class="layui-card">
+                        <div class="layui-card-header">Create Contract</div>
+                        <div class="layui-card-body">
+                            <form class="layui-form" id="contract-create-form">
+                                <div class="layui-form-item"><label class="layui-form-label">Profile ID</label><div class="layui-input-block"><input type="number" name="profile_id" required class="layui-input"></div></div>
+                                <div class="layui-form-item"><label class="layui-form-label">Start Date</label><div class="layui-input-block"><input type="date" name="start_date" required class="layui-input"></div></div>
+                                <div class="layui-form-item"><label class="layui-form-label">End Date</label><div class="layui-input-block"><input type="date" name="end_date" required class="layui-input"></div></div>
+                                <div class="layui-form-item"><label class="layui-form-label">Rent (cents)</label><div class="layui-input-block"><input type="number" name="rent_cents" required class="layui-input"></div></div>
+                                <div class="layui-form-item"><label class="layui-form-label">Deposit (cents)</label><div class="layui-input-block"><input type="number" name="deposit_cents" value="0" class="layui-input"></div></div>
+                                <div class="layui-form-item"><label class="layui-form-label">Maintenance (cents)</label><div class="layui-input-block"><input type="number" name="maintenance_cents" value="0" class="layui-input"></div></div>
+                                <div class="layui-form-item"><label class="layui-form-label">Frequency</label><div class="layui-input-block"><select name="frequency"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></div></div>
+                                <div class="layui-form-item"><div class="layui-input-block"><button type="submit" class="layui-btn" lay-submit lay-filter="createContract">Create</button></div></div>
+                            </form>
+                            <div id="contract-create-msg" class="auth-message layui-hide"></div>
+                        </div>
+                    </div></div></div>
+                </div>
+
+                <!-- Invoices list -->
+                <div id="page-invoices" class="page-view">
+                    <div class="layui-row layui-col-space15"><div class="layui-col-md12"><div class="layui-card">
+                        <div class="layui-card-header">Invoices <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh-invoices" style="float:right;margin-top:-3px;">Refresh</button></div>
+                        <div class="layui-card-body">
+                            <table class="layui-table"><thead><tr><th>ID</th><th>Contract</th><th>Due</th><th>Amount</th><th>Late Fee</th><th>Status</th></tr></thead>
+                            <tbody id="invoices-tbody"><tr><td colspan="6">Loading...</td></tr></tbody></table>
+                        </div>
+                    </div></div></div>
+                </div>
+                <!-- Payment form -->
+                <div id="page-payments" class="page-view">
+                    <div class="layui-row layui-col-space15"><div class="layui-col-md8"><div class="layui-card">
+                        <div class="layui-card-header">Record Payment</div>
+                        <div class="layui-card-body">
+                            <form class="layui-form" id="payment-form">
+                                <div class="layui-form-item"><label class="layui-form-label">Invoice ID</label><div class="layui-input-block"><input type="number" name="invoice_id" required class="layui-input"></div></div>
+                                <div class="layui-form-item"><label class="layui-form-label">Amount (cents)</label><div class="layui-input-block"><input type="number" name="amount_cents" required class="layui-input"></div></div>
+                                <div class="layui-form-item"><label class="layui-form-label">Method</label><div class="layui-input-block"><input type="text" name="method" value="cash" class="layui-input"></div></div>
+                                <div class="layui-form-item"><div class="layui-input-block"><button type="submit" class="layui-btn" lay-submit lay-filter="postPayment">Submit Payment</button></div></div>
+                            </form>
+                            <div id="payment-msg" class="auth-message layui-hide"></div>
+                        </div>
+                    </div></div></div>
+                </div>
+
+                <!-- Exports page -->
+                <div id="page-exports" class="page-view">
+                    <div class="layui-row layui-col-space15"><div class="layui-col-md8"><div class="layui-card">
+                        <div class="layui-card-header">Financial Exports</div>
+                        <div class="layui-card-body">
+                            <p>Download ledger and reconciliation reports as CSV.</p>
+                            <a class="layui-btn" id="btn-export-ledger">Download Ledger CSV</a>
+                            <a class="layui-btn layui-btn-normal" id="btn-export-recon">Download Reconciliation CSV</a>
+                        </div>
+                    </div></div></div>
+                </div>
+                <!-- Messaging page -->
+                <div id="page-messaging" class="page-view">
+                    <div class="layui-row layui-col-space15"><div class="layui-col-md12"><div class="layui-card">
+                        <div class="layui-card-header">Conversations <button class="layui-btn layui-btn-sm" id="btn-new-conv">New Conversation</button></div>
+                        <div class="layui-card-body">
+                            <div id="conv-list">Loading conversations...</div>
+                            <div id="msg-panel" class="layui-hide" style="margin-top:15px;border-top:1px solid #eee;padding-top:15px;">
+                                <div id="msg-list" style="max-height:300px;overflow-y:auto;margin-bottom:10px;"></div>
+                                <div class="layui-form-item" style="margin-bottom:0;">
+                                    <input type="text" id="msg-input" placeholder="Type a message..." class="layui-input" style="width:calc(100% - 80px);display:inline-block;">
+                                    <button class="layui-btn" id="btn-send-msg">Send</button>
+                                </div>
+                                <div id="msg-risk-warning" class="auth-message info layui-hide" style="margin-top:5px;"></div>
+                            </div>
+                        </div>
+                    </div></div></div>
+                </div>
+
+                <!-- Risk keywords page (admin) -->
+                <div id="page-risk-rules" class="page-view">
+                    <div class="layui-row layui-col-space15"><div class="layui-col-md12"><div class="layui-card">
+                        <div class="layui-card-header">Risk Keyword Library</div>
+                        <div class="layui-card-body">
+                            <table class="layui-table"><thead><tr><th>ID</th><th>Pattern</th><th>Action</th><th>Category</th><th>Active</th></tr></thead>
+                            <tbody id="risk-rules-tbody"><tr><td colspan="5">Loading...</td></tr></tbody></table>
+                        </div>
+                    </div></div></div>
+                </div>
+
+                <!-- Audit Log page (admin) -->
+                <div id="page-audit-logs" class="page-view">
+                    <div class="layui-row layui-col-space15"><div class="layui-col-md12"><div class="layui-card">
+                        <div class="layui-card-header">Audit Log (Read Only) <button class="layui-btn layui-btn-sm" id="btn-refresh-audit">Refresh</button></div>
+                        <div class="layui-card-body">
+                            <table class="layui-table"><thead><tr><th>ID</th><th>Event</th><th>Actor</th><th>Resource</th><th>Time</th><th>Trace</th></tr></thead>
+                            <tbody id="audit-tbody"><tr><td colspan="6">Loading...</td></tr></tbody></table>
+                        </div>
+                    </div></div></div>
+                </div>
+                <!-- Admin Jobs page -->
+                <div id="page-admin-jobs" class="page-view">
+                    <div class="layui-row layui-col-space15"><div class="layui-col-md12"><div class="layui-card">
+                        <div class="layui-card-header">Background Jobs <button class="layui-btn layui-btn-sm layui-btn-warm" id="btn-run-jobs">Run All Jobs Now</button></div>
+                        <div class="layui-card-body">
+                            <table class="layui-table"><thead><tr><th>Job</th><th>Schedule</th><th>Description</th></tr></thead>
+                            <tbody id="jobs-tbody"><tr><td colspan="3">Loading...</td></tr></tbody></table>
+                            <div id="jobs-result" class="auth-message success layui-hide"></div>
+                        </div>
+                    </div></div></div>
+                </div>
+
+                <!-- Admin Config page -->
+                <div id="page-admin-config" class="page-view">
+                    <div class="layui-row layui-col-space15"><div class="layui-col-md12"><div class="layui-card">
+                        <div class="layui-card-header">System Configuration</div>
+                        <div class="layui-card-body">
+                            <table class="layui-table"><thead><tr><th>Key</th><th>Value</th></tr></thead>
+                            <tbody id="config-tbody"><tr><td colspan="2">Loading...</td></tr></tbody></table>
+                        </div>
+                    </div></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="layui-footer">
+            Rural Land Lease & Settlement Management Portal &copy; 2026
+        </div>
+    </div>
+
+    <script src="/static/layui/layui.js"></script>
+    <script src="/static/js/api-client.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/entities.js"></script>
+    <script src="/static/js/finance.js"></script>
+    <script src="/static/js/messaging.js"></script>
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>

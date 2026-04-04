@@ -1,0 +1,51 @@
+<?php
+declare(strict_types=1);
+
+namespace app\service;
+
+use think\facade\Db;
+
+class ExportService
+{
+    public static function ledger(array $user, string $from, string $to, string $format = 'csv'): string
+    {
+        $query = Db::table('payments')
+            ->alias('p')
+            ->join('invoices i', 'p.invoice_id = i.id')
+            ->join('contracts c', 'i.contract_id = c.id')
+            ->field('p.id, p.invoice_id, p.amount_cents, p.paid_at, p.method, i.due_date, i.amount_cents as invoice_amount, c.profile_id')
+            ->where('p.paid_at', '>=', $from)
+            ->where('p.paid_at', '<=', $to . ' 23:59:59');
+
+        $query = ScopeService::applyScope($query, $user);
+        $rows = $query->order('p.paid_at', 'asc')->select()->toArray();
+
+        return self::toCsv($rows, ['id','invoice_id','amount_cents','paid_at','method','due_date','invoice_amount','profile_id']);
+    }
+
+    public static function reconciliation(array $user, string $from, string $to, string $format = 'csv'): string
+    {
+        $query = Db::table('invoices')
+            ->alias('i')
+            ->join('contracts c', 'i.contract_id = c.id')
+            ->field('i.id, i.contract_id, i.due_date, i.amount_cents, i.late_fee_cents, i.status, c.profile_id');
+
+        $query = ScopeService::applyScope($query->where('i.due_date', '>=', $from)->where('i.due_date', '<=', $to), $user);
+        $rows = $query->order('i.due_date', 'asc')->select()->toArray();
+
+        return self::toCsv($rows, ['id','contract_id','due_date','amount_cents','late_fee_cents','status','profile_id']);
+    }
+
+    private static function toCsv(array $rows, array $headers): string
+    {
+        $out = implode(',', $headers) . "\n";
+        foreach ($rows as $row) {
+            $vals = [];
+            foreach ($headers as $h) {
+                $vals[] = '"' . str_replace('"', '""', (string)($row[$h] ?? '')) . '"';
+            }
+            $out .= implode(',', $vals) . "\n";
+        }
+        return $out;
+    }
+}

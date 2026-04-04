@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Rural Land Lease Portal</title>
+    <link rel="stylesheet" href="/static/layui/css/layui.css">
+    <link rel="stylesheet" href="/static/css/auth.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card layui-card">
+            <div class="layui-card-header auth-header">
+                <h2>Rural Land Lease Portal</h2>
+                <p>Create your account</p>
+            </div>
+            <div class="layui-card-body">
+                <form class="layui-form" id="register-form">
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">Username</label>
+                        <div class="layui-input-block">
+                            <input type="text" name="username" required autocomplete="username"
+                                   placeholder="3-100 characters" class="layui-input">
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">Password</label>
+                        <div class="layui-input-block">
+                            <input type="password" name="password" required autocomplete="new-password"
+                                   placeholder="Min 12 chars, upper/lower/digit/symbol" class="layui-input">
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">Role</label>
+                        <div class="layui-input-block">
+                            <select name="role" lay-verify="required">
+                                <option value="farmer">Farmer</option>
+                                <option value="enterprise">Enterprise</option>
+                                <option value="collective">Village Collective</option>
+                                <option value="system_admin">System Admin</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">Scope</label>
+                        <div class="layui-input-block">
+                            <select name="geo_scope_level" lay-verify="required">
+                                <option value="village">Village</option>
+                                <option value="township">Township</option>
+                                <option value="county">County</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">Area ID</label>
+                        <div class="layui-input-block">
+                            <input type="number" name="geo_scope_id" value="3" required
+                                   placeholder="Geographic area ID" class="layui-input">
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <div class="layui-input-block">
+                            <button type="submit" class="layui-btn layui-btn-fluid" lay-submit lay-filter="register">
+                                Create Account
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                <div class="auth-footer">
+                    <a href="/static/login.html">Already have an account? Sign in</a>
+                </div>
+                <div class="auth-message layui-hide" id="auth-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/layui/layui.js"></script>
+    <script src="/static/js/api-client.js"></script>
+    <script src="/static/js/auth.js"></script>
+</body>
+</html>

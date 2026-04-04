@@ -1,0 +1,261 @@
+<?php
+declare(strict_types=1);
+
+namespace app\service;
+
+use think\facade\Db;
+
+/**
+ * Entity profile CRUD service.
+ * Manages farmer/enterprise/collective profiles with configurable extra fields,
+ * geo scope enforcement, and duplicate detection.
+ */
+class EntityService
+{
+    private const VALID_TYPES = ['farmer', 'enterprise', 'collective'];
+
+    /**
+     * List entities with scope filtering and pagination.
+     */
+    public static function list(array $user, array $filters = []): array
+    {
+        $query = Db::table('entity_profiles')->where('status', 'active');
+
+        // Apply geo scope
+        $query = ScopeService::applyScope($query, $user);
+
+        // Optional filters
+        if (!empty($filters['entity_type'])) {
+            $query->where('entity_type', $filters['entity_type']);
+        }
+        if (!empty($filters['keyword'])) {
+            $query->whereLike('display_name', '%' . $filters['keyword'] . '%');
+        }
+
+        $page = max((int)($filters['page'] ?? 1), 1);
+        $size = min(max((int)($filters['size'] ?? 20), 1), 100);
+        $offset = ($page - 1) * $size;
+
+        $total = $query->count();
+        $items = $query->order('created_at', 'desc')
+            ->limit($offset, $size)
+            ->select()
+            ->toArray();
+
+        // Parse extra fields JSON
+        foreach ($items as &$item) {
+            $item['extra_fields'] = !empty($item['extra_fields_json'])
+                ? json_decode($item['extra_fields_json'], true) : [];
+            unset($item['extra_fields_json']);
+        }
+
+        return ['items' => $items, 'page' => $page, 'total' => $total];
+    }
+
+    /**
+     * Get a single entity by ID (with scope check).
+     */
+    public static function getById(int $id, array $user): array
+    {
+        $entity = Db::table('entity_profiles')->where('id', $id)->find();
+        if (!$entity) {
+            throw new \think\exception\HttpException(404, 'Entity not found');
+        }
+
+        // Scope check
+        if (!ScopeService::canAccess($user, $entity['geo_scope_level'], (int)$entity['geo_scope_id'])) {
+            throw new \think\exception\HttpException(403, 'Access denied: entity outside your scope');
+        }
+
+        $entity['extra_fields'] = !empty($entity['extra_fields_json'])
+            ? json_decode($entity['extra_fields_json'], true) : [];
+        unset($entity['extra_fields_json']);
+
+        // Load duplicate flags
+        $duplicateFlags = Db::table('duplicate_flags')
+            ->where(function ($q) use ($id) {
+                $q->where('left_profile_id', $id)->whereOr('right_profile_id', $id);
+            })
+            ->where('status', 'open')
+            ->select()
+            ->toArray();
+
+        // Load merge history
+        $mergeHistory = Db::table('profile_merge_history')
+            ->where(function ($q) use ($id) {
+                $q->where('source_profile_id', $id)->whereOr('target_profile_id', $id);
+            })
+            ->order('created_at', 'desc')
+            ->select()
+            ->toArray();
+
+        return [
+            'profile'         => $entity,
+            'duplicate_flags' => $duplicateFlags,
+            'merge_history'   => $mergeHistory,
+        ];
+    }
+
+    /**
+     * Create a new entity profile.
+     */
+    public static function create(array $data, array $user, string $traceId = ''): array
+    {
+        $entityType = $data['entity_type'] ?? '';
+        if (!in_array($entityType, self::VALID_TYPES, true)) {
+            throw new \think\exception\HttpException(400, 'Invalid entity_type');
+        }
+
+        $displayName = trim($data['display_name'] ?? '');
+        if (empty($displayName)) {
+            throw new \think\exception\HttpException(400, 'display_name is required');
+        }
+
+        $address = trim($data['address'] ?? '');
+        $idLast4 = $data['id_last4'] ?? null;
+        $licenseLast4 = $data['license_last4'] ?? null;
+        $extraFields = $data['extra_fields'] ?? null;
+
+        $profileId = Db::table('entity_profiles')->insertGetId([
+            'entity_type'      => $entityType,
+            'display_name'     => $displayName,
+            'address'          => $address,
+            'id_last4'         => $idLast4,
+            'license_last4'    => $licenseLast4,
+            'extra_fields_json'=> $extraFields ? json_encode($extraFields) : null,
+            'geo_scope_level'  => $user['geo_scope_level'],
+            'geo_scope_id'     => $user['geo_scope_id'],
+            'created_by'       => $user['id'],
+        ]);
+
+        // Check for duplicates
+        $duplicateFlag = null;
+        $matches = DuplicateService::findMatches($displayName, $address, $idLast4, $licenseLast4, $profileId);
+        if (!empty($matches)) {
+            $flagCount = DuplicateService::flagDuplicates($profileId, $matches);
+            if ($flagCount > 0) {
+                $duplicateFlag = true;
+            }
+        }
+
+        LogService::info('entity_created', [
+            'profile_id'  => $profileId,
+            'entity_type' => $entityType,
+            'duplicates'  => count($matches),
+        ], $traceId);
+
+        return [
+            'id'             => $profileId,
+            'duplicate_flag' => $duplicateFlag,
+        ];
+    }
+
+    /**
+     * Update an existing entity profile.
+     */
+    public static function update(int $id, array $data, array $user, string $traceId = ''): array
+    {
+        $entity = Db::table('entity_profiles')->where('id', $id)->find();
+        if (!$entity) {
+            throw new \think\exception\HttpException(404, 'Entity not found');
+        }
+
+        // Scope check
+        if (!ScopeService::canAccess($user, $entity['geo_scope_level'], (int)$entity['geo_scope_id'])) {
+            throw new \think\exception\HttpException(403, 'Access denied: entity outside your scope');
+        }
+
+        $updateData = [];
+        if (isset($data['display_name'])) {
+            $updateData['display_name'] = trim($data['display_name']);
+        }
+        if (isset($data['address'])) {
+            $updateData['address'] = trim($data['address']);
+        }
+        if (isset($data['extra_fields'])) {
+            $updateData['extra_fields_json'] = json_encode($data['extra_fields']);
+        }
+        if (isset($data['status'])) {
+            $updateData['status'] = $data['status'];
+        }
+
+        if (!empty($updateData)) {
+            Db::table('entity_profiles')->where('id', $id)->update($updateData);
+        }
+
+        // Re-check duplicates after update
+        $displayName = $updateData['display_name'] ?? $entity['display_name'];
+        $address = $updateData['address'] ?? $entity['address'];
+        $duplicateFlag = null;
+        $matches = DuplicateService::findMatches(
+            $displayName, $address,
+            $entity['id_last4'], $entity['license_last4'], $id
+        );
+        if (!empty($matches)) {
+            $flagCount = DuplicateService::flagDuplicates($id, $matches);
+            if ($flagCount > 0) {
+                $duplicateFlag = true;
+            }
+        }
+
+        LogService::info('entity_updated', ['profile_id' => $id], $traceId);
+
+        return ['id' => $id, 'duplicate_flag' => $duplicateFlag];
+    }
+
+    /**
+     * Merge two profiles: source into target.
+     */
+    public static function merge(int $sourceId, int $targetId, array $resolutionMap, array $user, string $traceId = ''): array
+    {
+        $source = Db::table('entity_profiles')->where('id', $sourceId)->find();
+        $target = Db::table('entity_profiles')->where('id', $targetId)->find();
+
+        if (!$source || !$target) {
+            throw new \think\exception\HttpException(404, 'Profile not found');
+        }
+
+        // Scope check both
+        if (!ScopeService::canAccess($user, $source['geo_scope_level'], (int)$source['geo_scope_id']) ||
+            !ScopeService::canAccess($user, $target['geo_scope_level'], (int)$target['geo_scope_id'])) {
+            throw new \think\exception\HttpException(403, 'Access denied: profiles outside your scope');
+        }
+
+        // Record merge history
+        $historyId = Db::table('profile_merge_history')->insertGetId([
+            'source_profile_id' => $sourceId,
+            'target_profile_id' => $targetId,
+            'merged_by'         => $user['id'],
+            'diff_json'         => json_encode([
+                'source' => $source,
+                'target' => $target,
+                'resolution' => $resolutionMap,
+            ]),
+        ]);
+
+        // Deactivate source
+        Db::table('entity_profiles')
+            ->where('id', $sourceId)
+            ->update(['status' => 'inactive']);
+
+        // Close related duplicate flags
+        Db::table('duplicate_flags')
+            ->where(function ($q) use ($sourceId, $targetId) {
+                $q->where('left_profile_id', $sourceId)->where('right_profile_id', $targetId);
+            })
+            ->whereOr(function ($q) use ($sourceId, $targetId) {
+                $q->where('left_profile_id', $targetId)->where('right_profile_id', $sourceId);
+            })
+            ->update(['status' => 'merged']);
+
+        LogService::info('entity_merged', [
+            'source_id' => $sourceId,
+            'target_id' => $targetId,
+        ], $traceId);
+
+        return [
+            'merged_profile_id'   => $targetId,
+            'change_history_id'   => $historyId,
+        ];
+    }
+}

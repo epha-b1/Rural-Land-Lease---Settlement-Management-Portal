@@ -1,0 +1,80 @@
+/* Rural Lease Portal - App Styles */
+
+.portal-title {
+    color: #fff;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.app-content {
+    padding: 15px;
+}
+
+.page-view {
+    display: none;
+}
+
+.page-view.active {
+    display: block;
+}
+
+/* Health status panel */
+#health-status-panel {
+    padding: 20px 0;
+}
+
+.health-loading,
+.health-success,
+.health-error {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    padding: 15px;
+    border-radius: 4px;
+}
+
+.health-loading {
+    color: #1E9FFF;
+    background: #e8f4fd;
+}
+
+.health-success {
+    color: #009688;
+    background: #e8f5e9;
+}
+
+.health-error {
+    color: #FF5722;
+    background: #fbe9e7;
+}
+
+.health-icon-ok {
+    color: #009688;
+    font-size: 24px;
+}
+
+.health-icon-err {
+    color: #FF5722;
+    font-size: 24px;
+}
+
+.health-detail {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #666;
+}
+
+/* Status indicator in header */
+#system-status .status-ok {
+    color: #009688;
+}
+
+#system-status .status-err {
+    color: #FF5722;
+}
+
+/* Layout tweaks */
+.layui-layout-admin .layui-body {
+    overflow-y: auto;
+}
