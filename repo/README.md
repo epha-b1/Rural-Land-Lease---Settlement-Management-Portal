@@ -160,6 +160,43 @@ mysql -h 127.0.0.1 -P 3307 -u app -papp rural_lease
 - **Frontend (module/page coverage):** 100% — every JS module, page section, and HTML page is verified.
 - Reproducible analyzer: `docker compose exec -T api php tools/coverage.php`
 
+## Financial Exports (CSV / XLSX)
+
+Both ledger and reconciliation exports support **CSV** and **XLSX** (Open XML
+Spreadsheet). The format is chosen via a `?format=` query parameter:
+
+| Endpoint                      | Parameter          | Content-Type                                                               |
+| ----------------------------- | ------------------ | -------------------------------------------------------------------------- |
+| `GET /exports/ledger`         | `?format=csv`      | `text/csv`                                                                 |
+| `GET /exports/ledger`         | `?format=xlsx`     | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`        |
+| `GET /exports/reconciliation` | `?format=csv`      | `text/csv`                                                                 |
+| `GET /exports/reconciliation` | `?format=xlsx`     | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`        |
+
+Both endpoints also accept `from` and `to` date range parameters (ISO
+`YYYY-MM-DD`). Omitted format defaults to CSV. Unknown formats return 400.
+
+```bash
+# Ledger as CSV (default)
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/exports/ledger?from=2026-01-01&to=2026-12-31" \
+  -o ledger.csv
+
+# Ledger as XLSX (opens in Excel / LibreOffice / Google Sheets)
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/exports/ledger?format=xlsx&from=2026-01-01&to=2026-12-31" \
+  -o ledger.xlsx
+
+# Reconciliation XLSX
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/exports/reconciliation?format=xlsx&from=2026-01-01&to=2026-12-31" \
+  -o reconciliation.xlsx
+```
+
+Both endpoints are scope-filtered: a village/township user only receives
+rows for the areas they (and any active delegations they hold) can reach.
+Every export call writes an append-only audit log entry including the row
+count, format, caller IP and User-Agent.
+
 ---
 
 ## Architecture at a Glance
@@ -219,16 +256,85 @@ mysql -h 127.0.0.1 -P 3307 -u app -papp rural_lease
 
 All env vars are declared inline in `docker-compose.yml`. No `.env` file required.
 
-| Var                | Default                                | Purpose                   |
-| ------------------ | -------------------------------------- | ------------------------- |
-| `APP_DEBUG`        | `false`                                | Debug logging             |
-| `DB_HOST`          | `db`                                   | DB hostname (service name)|
-| `DB_PORT`          | `3306`                                 | DB port                   |
-| `DB_DATABASE`      | `rural_lease`                          | DB name                   |
-| `DB_USERNAME`      | `app`                                  | DB user                   |
-| `DB_PASSWORD`      | `app`                                  | DB password               |
-| `ENCRYPTION_KEY`   | 64-char hex string (in compose file)   | AES-256 key for at-rest   |
-| `JWT_SECRET`       | 32+ char secret (in compose file)      | Token signing             |
+| Var                    | Default                                  | Purpose                                                                                 |
+| ---------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------- |
+| `APP_ENV`              | `development`                            | Controls the production guard on the dev encryption key (see below).                    |
+| `APP_DEBUG`            | `false`                                  | Debug logging                                                                           |
+| `DB_HOST`              | `db`                                     | DB hostname (service name)                                                              |
+| `DB_PORT`              | `3306`                                   | DB port                                                                                 |
+| `DB_DATABASE`          | `rural_lease`                            | DB name                                                                                 |
+| `DB_USERNAME`          | `app`                                    | DB user                                                                                 |
+| `DB_PASSWORD`          | `app`                                    | DB password                                                                             |
+| `ENCRYPTION_KEY`       | dev marker (`…DEADBEEF`)                 | AES-256 at-rest key (64-char hex). **Rejected in production mode — see below.**         |
+| `ENCRYPTION_KEY_FILE`  | _(unset)_                                | Preferred: path to a secret-mounted file containing the 64-char hex key.                |
+| `JWT_SECRET`           | 32+ char secret (in compose file)        | Token signing                                                                           |
+
+### Secrets & Encryption Key Management (Issue I-10)
+
+The encryption key is the ONLY secret that protects sensitive at-rest data
+(MFA secrets, message bodies, attachment files, ID/license/bank references).
+To avoid shipping a real key in version-controlled config, the default
+`ENCRYPTION_KEY` in `docker-compose.yml` is the well-known
+**DEV marker key** (`00000000000000000000000000000000000000000000000000000000DEADBEEF`).
+
+`EncryptionService::getKey()` enforces the following policy:
+
+1. **Precedence:** if `ENCRYPTION_KEY_FILE` is set AND readable, its contents
+   are used. Otherwise `ENCRYPTION_KEY` is used.
+2. **Format:** the value must be a 64-character hexadecimal string (32 raw
+   bytes → AES-256). Shorter or non-hex values throw at boot.
+3. **Production guard:** if `APP_ENV` is anything other than
+   `development` / `dev` / `test` / `testing` / `local`, the service
+   REFUSES to operate with the DEV marker key. Every encrypt/decrypt call
+   throws `RuntimeException` until the key is rotated.
+
+**Production deployment recipe:**
+
+```bash
+# 1. Generate a fresh 32-byte random key as hex (64 chars)
+openssl rand -hex 32 > /run/secrets/rural_lease_encryption_key
+chmod 600 /run/secrets/rural_lease_encryption_key
+
+# 2. Mount it read-only into the api container via docker-compose.override.yml:
+#
+#    services:
+#      api:
+#        environment:
+#          APP_ENV: production
+#          ENCRYPTION_KEY_FILE: /run/secrets/rural_lease_encryption_key
+#          # Unset ENCRYPTION_KEY so the file takes precedence
+#        secrets:
+#          - source: rural_lease_encryption_key
+#            target: /run/secrets/rural_lease_encryption_key
+#
+#    secrets:
+#      rural_lease_encryption_key:
+#        file: /run/secrets/rural_lease_encryption_key
+
+# 3. Rotate keys by writing a new file and restarting the api container.
+```
+
+> **Key rotation is destructive for existing ciphertext.** Rotate keys
+> only during a maintenance window with a documented re-encryption plan.
+
+### Admin Bootstrap (Issue I-09)
+
+After the privilege-escalation remediation, **public `/auth/register`
+refuses to mint `system_admin` accounts.** Farmer, enterprise, and
+collective registrations continue to work from the public page.
+
+Admin accounts must be created by an existing system_admin via:
+
+```
+POST /admin/users        (middleware: authCheck:system_admin)
+Body: { username, password, role, geo_scope_level, geo_scope_id }
+```
+
+The very first admin must be seeded out-of-band — e.g. by a one-time
+SQL insert during deployment or by a dedicated bootstrap migration.
+Test suites use `tests/AdminBootstrap.php` which writes the row via
+PDO then performs a normal login, keeping tests honest to the security
+posture without reopening the public register path.
 
 ### Optional: TLS Intranet Profile
 
@@ -268,8 +374,8 @@ repo/
 │       └── js/          # api-client, app, auth, entities, finance, messaging, admin
 ├── route/app.php        # Route definitions grouped by slice
 ├── storage/
-│   ├── uploads/         # Attachment storage (10 MB cap, SHA-256)
-│   ├── exports/         # CSV exports
+│   ├── uploads/         # Attachment storage (10 MB cap, SHA-256 checksum, AES-256 at rest)
+│   ├── exports/         # Financial exports (CSV + XLSX / Open XML)
 │   ├── keys/            # Encryption keys (outside web root)
 │   └── tls/             # TLS certs + nginx.conf (for TLS profile)
 ├── tests/

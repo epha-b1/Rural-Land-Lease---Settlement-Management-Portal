@@ -102,15 +102,55 @@ layui.use(['form', 'layer'], function () {
         return false;
     });
 
-    // === Export buttons ===
-    var btnLedger = document.getElementById('btn-export-ledger');
-    if (btnLedger) btnLedger.addEventListener('click', function () {
-        window.open('/exports/ledger?from=2020-01-01&to=' + new Date().toISOString().slice(0, 10), '_blank');
-    });
-    var btnRecon = document.getElementById('btn-export-recon');
-    if (btnRecon) btnRecon.addEventListener('click', function () {
-        window.open('/exports/reconciliation?from=2020-01-01&to=' + new Date().toISOString().slice(0, 10), '_blank');
-    });
+    // === Export buttons (Issue I-13: CSV + XLSX) ===
+    function buildExportUrl(kind, format) {
+        var fromEl = document.getElementById('export-from');
+        var toEl = document.getElementById('export-to');
+        var from = (fromEl && fromEl.value) || '2020-01-01';
+        var to   = (toEl && toEl.value)   || new Date().toISOString().slice(0, 10);
+        var qs = 'from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to) + '&format=' + format;
+        return '/exports/' + kind + '?' + qs;
+    }
+
+    /**
+     * Fetch the export as a blob so we can include the Bearer token.
+     * window.open() cannot carry an Authorization header, so we stream the
+     * response through fetch() with the stored token and build an object URL
+     * for the browser download.
+     */
+    function downloadExport(kind, format, suggestedName) {
+        var url = buildExportUrl(kind, format);
+        var token = ApiClient.getToken();
+        fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(function (resp) {
+                if (!resp.ok) {
+                    layer.msg('Export failed: ' + resp.status, { icon: 2 });
+                    return null;
+                }
+                return resp.blob();
+            })
+            .then(function (blob) {
+                if (!blob) return;
+                var blobUrl = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = suggestedName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 1000);
+            })
+            .catch(function () { layer.msg('Export failed', { icon: 2 }); });
+    }
+
+    var btnLedgerCsv = document.getElementById('btn-export-ledger-csv');
+    if (btnLedgerCsv) btnLedgerCsv.addEventListener('click', function () { downloadExport('ledger', 'csv', 'ledger.csv'); });
+    var btnLedgerXlsx = document.getElementById('btn-export-ledger-xlsx');
+    if (btnLedgerXlsx) btnLedgerXlsx.addEventListener('click', function () { downloadExport('ledger', 'xlsx', 'ledger.xlsx'); });
+    var btnReconCsv = document.getElementById('btn-export-recon-csv');
+    if (btnReconCsv) btnReconCsv.addEventListener('click', function () { downloadExport('reconciliation', 'csv', 'reconciliation.csv'); });
+    var btnReconXlsx = document.getElementById('btn-export-recon-xlsx');
+    if (btnReconXlsx) btnReconXlsx.addEventListener('click', function () { downloadExport('reconciliation', 'xlsx', 'reconciliation.xlsx'); });
 
     function esc(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(s || '')); return d.innerHTML; }
 });

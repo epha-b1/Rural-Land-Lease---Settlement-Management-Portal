@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace tests\api;
 
 use PHPUnit\Framework\TestCase;
+use tests\AdminBootstrap;
 
 /**
  * API tests for MFA enrollment, verification, and login with MFA.
@@ -11,6 +12,8 @@ use PHPUnit\Framework\TestCase;
  */
 class AuthMfaTest extends TestCase
 {
+    use AdminBootstrap;
+
     private string $baseUrl;
 
     protected function setUp(): void
@@ -83,20 +86,12 @@ class AuthMfaTest extends TestCase
      */
     public function testFullMfaFlowWithLogin(): void
     {
-        $username = 'mfaadmin_' . bin2hex(random_bytes(4));
-        $password = 'AdminP@ss12345';
-
-        // Register admin
-        $this->post('/auth/register', [
-            'username' => $username, 'password' => $password,
-            'role' => 'system_admin', 'geo_scope_level' => 'county', 'geo_scope_id' => 1,
-        ]);
-
-        // Login
-        $loginResp = $this->post('/auth/login', [
-            'username' => $username, 'password' => $password,
-        ]);
-        $token = $loginResp['data']['access_token'];
+        // Issue I-09: admin bootstrapped via PDO. Trait returns the password
+        // used during row insert so we can subsequently log in normally.
+        $admin = $this->bootstrapAdmin('mfaflow');
+        $username = $admin['username'];
+        $password = $admin['password'];
+        $token = $admin['token'];
 
         // Enroll
         $enrollResp = $this->post('/auth/mfa/enroll', [], $token);
@@ -148,16 +143,8 @@ class AuthMfaTest extends TestCase
 
     private function createAndLoginAdmin(): string
     {
-        $username = 'admin_' . bin2hex(random_bytes(4));
-        $password = 'AdminP@ss12345';
-        $this->post('/auth/register', [
-            'username' => $username, 'password' => $password,
-            'role' => 'system_admin', 'geo_scope_level' => 'county', 'geo_scope_id' => 1,
-        ]);
-        $resp = $this->post('/auth/login', [
-            'username' => $username, 'password' => $password,
-        ]);
-        return $resp['data']['access_token'];
+        // Issue I-09: bootstrap admin via PDO (public register refuses).
+        return $this->bootstrapAdmin('mfa')['token'];
     }
 
     private function createAndLoginFarmer(): string

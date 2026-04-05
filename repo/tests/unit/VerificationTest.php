@@ -4,12 +4,15 @@ declare(strict_types=1);
 namespace tests\unit;
 
 use PHPUnit\Framework\TestCase;
+use tests\AdminBootstrap;
 
 /**
  * Tests for verification state machine, reject-reason rule, and transitions.
  */
 class VerificationTest extends TestCase
 {
+    use AdminBootstrap;
+
     private string $baseUrl;
     private string $adminToken;
 
@@ -83,14 +86,8 @@ class VerificationTest extends TestCase
 
     private function createAdminAndLogin(): string
     {
-        $u = 'vadmin_' . bin2hex(random_bytes(4));
-        $p = 'AdminP@ss12345';
-        $this->post('/auth/register', [
-            'username' => $u, 'password' => $p,
-            'role' => 'system_admin', 'geo_scope_level' => 'county', 'geo_scope_id' => 1,
-        ]);
-        $resp = $this->post('/auth/login', ['username' => $u, 'password' => $p]);
-        return $resp['data']['access_token'];
+        // Issue I-09: public register no longer mints admins; bootstrap via PDO.
+        return $this->bootstrapAdmin('verif')['token'];
     }
 
     private function createFarmerAndLogin(): string

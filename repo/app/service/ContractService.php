@@ -77,8 +77,8 @@ class ContractService
                 'frequency'    => $frequency,
                 'invoices_created' => $invoiceCount,
             ],
-            '',
-            '',
+            RequestContext::ip(),
+            RequestContext::device(),
             $traceId
         );
 

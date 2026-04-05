@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace tests\api;
 
 use PHPUnit\Framework\TestCase;
+use tests\AdminBootstrap;
 
 /**
  * End-to-end tests for the delegation workflow (Issue #5 fix).
@@ -16,6 +17,8 @@ use PHPUnit\Framework\TestCase;
  */
 class DelegationWorkflowTest extends TestCase
 {
+    use AdminBootstrap;
+
     private string $baseUrl;
 
     protected function setUp(): void
@@ -27,7 +30,8 @@ class DelegationWorkflowTest extends TestCase
     {
         $grantor = $this->makeAdmin('grant');
         $approver = $this->makeAdmin('appr');
-        $grantee = $this->makeFarmer('grantee');
+        // Grantee must be a system_admin — delegations are admin-to-admin only.
+        $grantee = $this->makeScopedAdmin('grantee', 'village', 3);
 
         $created = $this->post('/delegations', [
             'grantee_id'  => $grantee['id'],
@@ -51,6 +55,10 @@ class DelegationWorkflowTest extends TestCase
     public function testFarmerCannotCreateDelegation(): void
     {
         $farmer = $this->makeFarmer('f1');
+        // For this test we only care that the farmer (grantor) is blocked by
+        // the 403 RBAC check; the grantee role never matters because the
+        // request never gets past the grantor check. Using another farmer
+        // here is fine and keeps the test focused on grantor-side RBAC.
         $grantee = $this->makeFarmer('f2');
 
         $resp = $this->post('/delegations', [
@@ -66,7 +74,8 @@ class DelegationWorkflowTest extends TestCase
     public function testGrantorCannotApproveOwnDelegation(): void
     {
         $grantor = $this->makeAdmin('selfg');
-        $grantee = $this->makeFarmer('selfgtee');
+        // Admin-to-admin delegation
+        $grantee = $this->makeScopedAdmin('selfgtee', 'village', 3);
 
         $created = $this->post('/delegations', [
             'grantee_id'  => $grantee['id'],
@@ -87,7 +96,7 @@ class DelegationWorkflowTest extends TestCase
     public function testExpiryBeyond30DaysIsRejected(): void
     {
         $grantor = $this->makeAdmin('expg');
-        $grantee = $this->makeFarmer('expgtee');
+        $grantee = $this->makeScopedAdmin('expgtee', 'village', 3);
 
         // 60 days in the future — exceeds the 30-day cap
         $resp = $this->post('/delegations', [
@@ -119,7 +128,7 @@ class DelegationWorkflowTest extends TestCase
     {
         $grantor = $this->makeAdmin('dag');
         $approver = $this->makeAdmin('daa');
-        $grantee = $this->makeFarmer('dagt');
+        $grantee = $this->makeScopedAdmin('dagt', 'village', 3);
 
         $created = $this->post('/delegations', [
             'grantee_id'  => $grantee['id'],
@@ -160,6 +169,16 @@ class DelegationWorkflowTest extends TestCase
         return $this->makeUser($prefix, 'system_admin', 'county', 1);
     }
 
+    /**
+     * A system_admin user with a narrow base scope — used as a delegation
+     * grantee so the delegation actually expands reach beyond the base
+     * scope while still honoring the admin-to-admin policy.
+     */
+    private function makeScopedAdmin(string $prefix, string $scope, int $scopeId): array
+    {
+        return $this->makeUser($prefix, 'system_admin', $scope, $scopeId);
+    }
+
     private function makeFarmer(string $prefix): array
     {
         return $this->makeUser($prefix, 'farmer', 'village', 3);
@@ -167,6 +186,11 @@ class DelegationWorkflowTest extends TestCase
 
     private function makeUser(string $prefix, string $role, string $scope, int $scopeId): array
     {
+        // Issue I-09: system_admin bootstrapped via PDO (public register refuses).
+        if ($role === 'system_admin') {
+            $admin = $this->bootstrapAdmin('del_' . $prefix, $scope, $scopeId);
+            return ['id' => $admin['id'], 'token' => $admin['token']];
+        }
         $u = 'del_' . $prefix . '_' . bin2hex(random_bytes(4));
         $p = 'SecureP@ss1234';
         $reg = $this->post('/auth/register', [

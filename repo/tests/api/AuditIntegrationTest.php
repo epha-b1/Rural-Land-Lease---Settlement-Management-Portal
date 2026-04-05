@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace tests\api;
 
 use PHPUnit\Framework\TestCase;
+use tests\AdminBootstrap;
 
 /**
  * Proves that business actions write rows to the append-only audit log
@@ -16,6 +17,8 @@ use PHPUnit\Framework\TestCase;
  */
 class AuditIntegrationTest extends TestCase
 {
+    use AdminBootstrap;
+
     private string $baseUrl;
     private string $adminToken;
     private string $farmerToken;
@@ -157,6 +160,11 @@ class AuditIntegrationTest extends TestCase
 
     private function makeUser(string $prefix, string $role, string $scope, int $scopeId): array
     {
+        // Issue I-09: system_admin bootstrapped via PDO (public register refuses).
+        if ($role === 'system_admin') {
+            $admin = $this->bootstrapAdmin($prefix, $scope, $scopeId);
+            return ['id' => $admin['id'], 'token' => $admin['token']];
+        }
         $u = $prefix . '_' . bin2hex(random_bytes(4));
         $p = 'SecureP@ss1234';
         $reg = $this->post('/auth/register', ['username' => $u, 'password' => $p, 'role' => $role, 'geo_scope_level' => $scope, 'geo_scope_id' => $scopeId]);

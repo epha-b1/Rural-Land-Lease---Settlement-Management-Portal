@@ -4,12 +4,15 @@ declare(strict_types=1);
 namespace tests\api;
 
 use PHPUnit\Framework\TestCase;
+use tests\AdminBootstrap;
 
 /**
  * API tests for entity profile CRUD, scope enforcement, and duplicate detection.
  */
 class EntityCrudTest extends TestCase
 {
+    use AdminBootstrap;
+
     private string $baseUrl;
     private string $villageToken;
     private string $countyToken;
@@ -138,6 +141,10 @@ class EntityCrudTest extends TestCase
     // === Helpers ===
     private function createUserAndLogin(string $role, string $scopeLevel, int $scopeId): string
     {
+        // Issue I-09: public register refuses system_admin; bootstrap via PDO.
+        if ($role === 'system_admin') {
+            return $this->bootstrapAdmin('ent', $scopeLevel, $scopeId)['token'];
+        }
         $u = 'ent_' . $role . '_' . bin2hex(random_bytes(4));
         $p = 'SecureP@ss1234';
         $this->post('/auth/register', [

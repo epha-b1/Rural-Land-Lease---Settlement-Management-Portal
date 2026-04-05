@@ -4,6 +4,13 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # === Runtime mode ===
+      # APP_ENV controls the EncryptionService dev-key guard. Keep "development"
+      # while running locally. In production set APP_ENV=production AND rotate
+      # the encryption key via ENCRYPTION_KEY_FILE (see README "Secrets &
+      # Encryption Key Management"). EncryptionService REFUSES to run with the
+      # DEV marker key when APP_ENV is anything but dev/development/test/local.
+      APP_ENV: "development"
       APP_DEBUG: "false"
       DB_HOST: db
       DB_PORT: "3306"
@@ -11,7 +18,21 @@ services:
       DB_USERNAME: app
       DB_PASSWORD: app
       JWT_SECRET: dev-secret-min-32-chars-xxxxxxxxx
-      ENCRYPTION_KEY: "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+
+      # === Encryption key (Issue I-10 remediation) ===
+      # This value is the well-known INSECURE DEV MARKER defined in
+      # app/service/EncryptionService.php::DEV_KEY_MARKER. It is checked by
+      # the production guard: if APP_ENV=production and this exact value is
+      # present, the service throws on first use and refuses to boot.
+      #
+      # For production, unset ENCRYPTION_KEY and set ENCRYPTION_KEY_FILE to
+      # a read-only path populated by your secret manager:
+      #
+      #   ENCRYPTION_KEY_FILE: /run/secrets/rural_lease_encryption_key
+      #
+      # and mount the secret via docker-compose secrets / k8s Secret / etc.
+      # The file must contain a fresh 64-char hex string (32 random bytes).
+      ENCRYPTION_KEY: "00000000000000000000000000000000000000000000000000000000DEADBEEF"
     depends_on:
       db:
         condition: service_healthy

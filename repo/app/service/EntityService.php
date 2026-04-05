@@ -15,6 +15,90 @@ class EntityService
     private const VALID_TYPES = ['farmer', 'enterprise', 'collective'];
 
     /**
+     * Issue #10 remediation: validate extra_fields against the
+     * admin-configured `extra_field_definitions` for the given entity_type.
+     *
+     * Rules enforced:
+     *  - Unknown keys are rejected (400).
+     *  - text: must be a string.
+     *  - number: must be numeric (int or float).
+     *  - date: must match YYYY-MM-DD and parse to a real date.
+     *  - select: value must appear in options_json.
+     * Only definitions with active=1 are considered.
+     *
+     * @throws \think\exception\HttpException on any violation.
+     */
+    public static function validateExtraFields(string $entityType, ?array $extraFields): void
+    {
+        if (empty($extraFields)) {
+            return;
+        }
+
+        $defs = Db::table('extra_field_definitions')
+            ->where('entity_type', $entityType)
+            ->where('active', 1)
+            ->select()
+            ->toArray();
+
+        $byKey = [];
+        foreach ($defs as $d) {
+            $byKey[$d['field_key']] = $d;
+        }
+
+        foreach ($extraFields as $key => $value) {
+            if (!isset($byKey[$key])) {
+                throw new \think\exception\HttpException(400,
+                    "unknown extra field '{$key}' for entity_type={$entityType}"
+                );
+            }
+            $def = $byKey[$key];
+            $type = $def['field_type'];
+
+            switch ($type) {
+                case 'text':
+                    if (!is_string($value)) {
+                        throw new \think\exception\HttpException(400,
+                            "extra field '{$key}' must be a string"
+                        );
+                    }
+                    break;
+                case 'number':
+                    if (!is_numeric($value)) {
+                        throw new \think\exception\HttpException(400,
+                            "extra field '{$key}' must be numeric"
+                        );
+                    }
+                    break;
+                case 'date':
+                    if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+                        throw new \think\exception\HttpException(400,
+                            "extra field '{$key}' must be YYYY-MM-DD"
+                        );
+                    }
+                    $parts = explode('-', $value);
+                    if (!checkdate((int)$parts[1], (int)$parts[2], (int)$parts[0])) {
+                        throw new \think\exception\HttpException(400,
+                            "extra field '{$key}' is not a valid date"
+                        );
+                    }
+                    break;
+                case 'select':
+                    $options = !empty($def['options_json']) ? json_decode($def['options_json'], true) : [];
+                    if (!is_array($options) || !in_array($value, $options, true)) {
+                        throw new \think\exception\HttpException(400,
+                            "extra field '{$key}' must be one of: " . implode(', ', $options ?: [])
+                        );
+                    }
+                    break;
+                default:
+                    throw new \think\exception\HttpException(400,
+                        "extra field '{$key}' has unknown definition type"
+                    );
+            }
+        }
+    }
+
+    /**
      * List entities with scope filtering and pagination.
      */
     public static function list(array $user, array $filters = []): array
@@ -116,6 +200,9 @@ class EntityService
         $licenseLast4 = $data['license_last4'] ?? null;
         $extraFields = $data['extra_fields'] ?? null;
 
+        // Issue #10 remediation: enforce extra field definition contract
+        self::validateExtraFields($entityType, $extraFields);
+
         $profileId = Db::table('entity_profiles')->insertGetId([
             'entity_type'      => $entityType,
             'display_name'     => $displayName,
@@ -143,6 +230,26 @@ class EntityService
             'entity_type' => $entityType,
             'duplicates'  => count($matches),
         ], $traceId);
+
+        // Issue #12 remediation: append-only audit with full request metadata
+        AuditService::log(
+            'entity_created',
+            (int)$user['id'],
+            'entity_profile',
+            (int)$profileId,
+            null,
+            [
+                'entity_type'        => $entityType,
+                'display_name'       => $displayName,
+                'address'            => $address,
+                'has_id_last4'       => !empty($idLast4),
+                'has_license_last4'  => !empty($licenseLast4),
+                'duplicate_flag'     => (bool)$duplicateFlag,
+            ],
+            RequestContext::ip(),
+            RequestContext::device(),
+            $traceId
+        );
 
         return [
             'id'             => $profileId,
@@ -173,6 +280,8 @@ class EntityService
             $updateData['address'] = trim($data['address']);
         }
         if (isset($data['extra_fields'])) {
+            // Issue #10 remediation: validate against definitions on update too
+            self::validateExtraFields($entity['entity_type'], $data['extra_fields']);
             $updateData['extra_fields_json'] = json_encode($data['extra_fields']);
         }
         if (isset($data['status'])) {

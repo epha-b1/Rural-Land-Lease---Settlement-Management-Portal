@@ -16,14 +16,28 @@ class AuthService
     private const MAX_BACKOFF_SECONDS = 3600;   // cap at 1 hour
 
     private const VALID_ROLES = ['farmer', 'enterprise', 'collective', 'system_admin'];
+    /**
+     * Roles that CANNOT be self-assigned via the public /auth/register
+     * endpoint. Admin accounts must be created through an authenticated
+     * bootstrap/invite flow (see AuthService::createByAdmin()), never by
+     * an anonymous client.
+     */
+    private const PUBLIC_REGISTRATION_BLOCKED_ROLES = ['system_admin'];
     private const VALID_SCOPES = ['village', 'township', 'county'];
 
     /**
-     * Register a new user.
+     * Register a new user through the PUBLIC entry point.
+     *
+     * Issue I-09 remediation (v3 Blocking): the `$public` flag is true by
+     * default. Public registration refuses to mint `system_admin` accounts
+     * — any such attempt returns 403 FORBIDDEN. Admin accounts must be
+     * created via AuthService::createByAdmin() which requires an
+     * authenticated system_admin caller (two-person/invite model).
+     *
      * @return array User data on success
-     * @throws \Exception on validation failure
+     * @throws \think\exception\HttpException on validation or policy failure
      */
-    public static function register(array $data, string $traceId = ''): array
+    public static function register(array $data, string $traceId = '', bool $public = true): array
     {
         $username = trim($data['username'] ?? '');
         $password = $data['password'] ?? '';
@@ -48,6 +62,17 @@ class AuthService
         // Validate role
         if (!in_array($role, self::VALID_ROLES, true)) {
             throw new \think\exception\HttpException(400, 'Invalid role: ' . $role);
+        }
+
+        // Issue I-09: reject privileged role assignment via public entry
+        if ($public && in_array($role, self::PUBLIC_REGISTRATION_BLOCKED_ROLES, true)) {
+            LogService::warning('privilege_escalation_attempt', [
+                'username' => $username,
+                'role'     => $role,
+            ], $traceId);
+            throw new \think\exception\HttpException(403,
+                'Role ' . $role . ' cannot be self-registered. Admin accounts must be created by an existing system_admin via /admin/users.'
+            );
         }
 
         // Validate scope
@@ -93,6 +118,45 @@ class AuthService
                 'id'    => $geoScopeId,
             ],
         ];
+    }
+
+    /**
+     * Admin-only user creation path (Issue I-09 remediation).
+     *
+     * Mints a user account bypassing the public registration block on
+     * privileged roles. The caller MUST already be an authenticated
+     * system_admin — this invariant is enforced upstream by the route
+     * middleware (`authCheck:system_admin`) on POST /admin/users, and
+     * reasserted here as defense-in-depth.
+     *
+     * @throws \think\exception\HttpException
+     */
+    public static function createByAdmin(array $data, array $caller, string $traceId = ''): array
+    {
+        if (($caller['role'] ?? '') !== 'system_admin') {
+            throw new \think\exception\HttpException(403, 'Only system_admin may create admin accounts');
+        }
+
+        // Use the same register pipeline, but with the public-block disabled.
+        $result = self::register($data, $traceId, false);
+
+        AuditService::log(
+            'admin_user_created',
+            (int)$caller['id'],
+            'user',
+            (int)$result['user_id'],
+            null,
+            [
+                'username' => $result['username'],
+                'role'     => $result['role'],
+                'scope'    => $result['scope'],
+            ],
+            RequestContext::ip(),
+            RequestContext::device(),
+            $traceId
+        );
+
+        return $result;
     }
 
     /**
@@ -152,9 +216,15 @@ class AuthService
                 ];
             }
 
-            // Verify TOTP
-            // Decode base32-stored secret for TOTP verification
-            $secret = MfaService::decodeBase32($user['mfa_secret']);
+            // Verify TOTP.
+            // Issue #7 remediation: `mfa_secret` is AES-256 ciphertext of a
+            // base32 secret. Decrypt → decode base32 → raw HMAC key. A
+            // backward-compat branch handles rows still stored as raw base32.
+            $storedSecret = $user['mfa_secret'];
+            if (!preg_match('/^[A-Z2-7=]+$/', $storedSecret)) {
+                $storedSecret = EncryptionService::decrypt($storedSecret);
+            }
+            $secret = MfaService::decodeBase32($storedSecret);
             if (!MfaService::verifyCode($secret, $totpCode)) {
                 self::recordFailure($userId, $ip);
 

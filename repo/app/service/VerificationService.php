@@ -48,8 +48,8 @@ class VerificationService
             (int)$id,
             null,
             ['status' => 'pending', 'has_id_number' => !empty($idNumber), 'has_license' => !empty($licenseNumber)],
-            $ip,
-            '',
+            $ip ?: RequestContext::ip(),
+            RequestContext::device(),
             $traceId
         );
 
@@ -97,8 +97,8 @@ class VerificationService
             $requestId,
             $before,
             ['status' => 'approved', 'note' => $note],
-            $ip,
-            '',
+            $ip ?: RequestContext::ip(),
+            RequestContext::device(),
             $traceId
         );
 
@@ -151,8 +151,8 @@ class VerificationService
             $requestId,
             $before,
             ['status' => 'rejected', 'reason' => $reason],
-            $ip,
-            '',
+            $ip ?: RequestContext::ip(),
+            RequestContext::device(),
             $traceId
         );
 

@@ -4,12 +4,15 @@ declare(strict_types=1);
 namespace tests\unit;
 
 use PHPUnit\Framework\TestCase;
+use tests\AdminBootstrap;
 
 /**
  * Tests for background job wiring and admin endpoints.
  */
 class JobsTest extends TestCase
 {
+    use AdminBootstrap;
+
     private string $baseUrl;
 
     protected function setUp(): void
@@ -81,10 +84,10 @@ class JobsTest extends TestCase
 
     private function adminToken(): string
     {
-        $u = 'jobadm_' . bin2hex(random_bytes(4)); $p = 'SecureP@ss1234';
-        $this->doPost('/auth/register', ['username' => $u, 'password' => $p, 'role' => 'system_admin', 'geo_scope_level' => 'county', 'geo_scope_id' => 1]);
-        $r = $this->doPost('/auth/login', ['username' => $u, 'password' => $p]);
-        return $r['data']['access_token'];
+        // Issue I-09: admin accounts can no longer be self-registered via
+        // the public path. The shared AdminBootstrap trait provisions the
+        // row via PDO then performs a normal login.
+        return $this->bootstrapAdmin('jobs')['token'];
     }
 
     private function farmerToken(): string

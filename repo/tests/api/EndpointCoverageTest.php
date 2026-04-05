@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace tests\api;
 
 use PHPUnit\Framework\TestCase;
+use tests\AdminBootstrap;
 
 /**
  * Closes all remaining backend endpoint coverage gaps.
@@ -11,6 +12,8 @@ use PHPUnit\Framework\TestCase;
  */
 class EndpointCoverageTest extends TestCase
 {
+    use AdminBootstrap;
+
     private string $baseUrl;
     private string $farmerToken;
     private string $adminToken;
@@ -281,6 +284,10 @@ class EndpointCoverageTest extends TestCase
 
     private function makeUser(string $role, string $scope, int $scopeId): string
     {
+        // Issue I-09: system_admin bootstrapped via PDO (public register refuses).
+        if ($role === 'system_admin') {
+            return $this->bootstrapAdmin('cov_' . substr($role, 0, 3), $scope, $scopeId)['token'];
+        }
         $u = 'cov_' . substr($role, 0, 3) . '_' . bin2hex(random_bytes(4));
         $p = 'SecureP@ss1234';
         $this->post('/auth/register', ['username' => $u, 'password' => $p, 'role' => $role, 'geo_scope_level' => $scope, 'geo_scope_id' => $scopeId]);

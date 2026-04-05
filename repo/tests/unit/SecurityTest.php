@@ -5,12 +5,15 @@ namespace tests\unit;
 
 use PHPUnit\Framework\TestCase;
 use app\service\EncryptionService;
+use tests\AdminBootstrap;
 
 /**
  * Security tests: encryption roundtrip, masking, audit append-only.
  */
 class SecurityTest extends TestCase
 {
+    use AdminBootstrap;
+
     /** Encrypt/decrypt roundtrip */
     public function testEncryptDecryptRoundtrip(): void
     {
@@ -57,11 +60,9 @@ class SecurityTest extends TestCase
     /** Admin can access audit logs */
     public function testAdminCanAccessAuditLogs(): void
     {
+        // Issue I-09: admin bootstrapped via trait (public register refuses).
         $baseUrl = getenv('API_BASE_URL') ?: 'http://localhost:8000';
-        $u = 'auditadmin_' . bin2hex(random_bytes(4)); $p = 'SecureP@ss1234';
-        $this->doPost($baseUrl . '/auth/register', ['username' => $u, 'password' => $p, 'role' => 'system_admin', 'geo_scope_level' => 'county', 'geo_scope_id' => 1]);
-        $r = $this->doPost($baseUrl . '/auth/login', ['username' => $u, 'password' => $p]);
-        $token = $r['data']['access_token'];
+        $token = $this->bootstrapAdmin('secaud')['token'];
 
         $ch = curl_init($baseUrl . '/audit-logs');
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $token]]);

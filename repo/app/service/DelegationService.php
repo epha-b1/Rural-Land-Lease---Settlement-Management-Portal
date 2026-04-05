@@ -58,6 +58,11 @@ class DelegationService
         if ($grantee['id'] == $grantor['id']) {
             throw new \think\exception\HttpException(400, 'Cannot delegate to yourself');
         }
+        if ($grantee['role'] !== 'system_admin') {
+            // Policy: delegations are strictly admin-to-admin. A farmer /
+            // enterprise / collective user cannot receive a delegation.
+            throw new \think\exception\HttpException(400, 'Grantee must be a system_admin');
+        }
 
         // Scope target must exist in geo_areas
         $geoArea = Db::table('geo_areas')->where('id', $scopeId)->find();
@@ -82,8 +87,8 @@ class DelegationService
             (int)$id,
             null,
             ['grantee_id' => $granteeId, 'scope_level' => $scopeLevel, 'scope_id' => $scopeId, 'status' => 'pending_approval'],
-            $ip,
-            '',
+            $ip ?: RequestContext::ip(),
+            RequestContext::device(),
             $traceId
         );
 
@@ -132,8 +137,8 @@ class DelegationService
             $delegationId,
             $before,
             ['status' => $newStatus, 'approved_by' => $approver['id'], 'reason' => $reason],
-            $ip,
-            '',
+            $ip ?: RequestContext::ip(),
+            RequestContext::device(),
             $traceId
         );
 

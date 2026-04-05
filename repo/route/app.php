@@ -17,6 +17,11 @@ Route::get('auth/me', 'Auth/me')->middleware('authCheck');
 Route::post('auth/mfa/enroll', 'Auth/mfaEnroll')->middleware('authCheck', 'system_admin');
 Route::post('auth/mfa/verify', 'Auth/mfaVerify')->middleware('authCheck', 'system_admin');
 
+// Issue I-09: admin-only user-creation endpoint. The public /auth/register
+// refuses to mint system_admin; this authenticated path is the only way to
+// bootstrap additional admin accounts.
+Route::post('admin/users', 'Auth/adminCreateUser')->middleware('authCheck', 'system_admin')->completeMatch(true);
+
 // === Slice 3: Profiles, Verification, Scope ===
 
 // Entity profiles: specific routes BEFORE general list (order matters)
@@ -51,6 +56,9 @@ Route::get('exports/reconciliation', 'Payment/reconciliation')->middleware('auth
 Route::get('conversations/:id/messages', 'Message/messages')->middleware('authCheck')->pattern(['id' => '\d+']);
 Route::get('conversations', 'Message/conversations')->middleware('authCheck')->completeMatch(true);
 Route::post('conversations', 'Message/createConversation')->middleware('authCheck')->completeMatch(true);
+// Issue I-12: pre-send risk check — advisory evaluation, no persistence.
+// Must come BEFORE the generic POST /messages route so it takes precedence.
+Route::post('messages/preflight-risk', 'Message/preflightRisk')->middleware('authCheck')->completeMatch(true);
 Route::post('messages', 'Message/send')->middleware('authCheck')->completeMatch(true);
 Route::patch('messages/:id/recall', 'Message/recall')->middleware('authCheck')->pattern(['id' => '\d+']);
 Route::post('messages/:id/report', 'Message/report')->middleware('authCheck')->pattern(['id' => '\d+']);

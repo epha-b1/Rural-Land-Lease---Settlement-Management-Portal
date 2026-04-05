@@ -68,6 +68,13 @@ class AuthCheck
             'mfa_enabled'     => (bool)$user['mfa_enabled'],
         ], $token);
 
+        // Issue #12 remediation: capture request metadata (IP + UA) so that
+        // service-layer audit callsites can log complete forensic context
+        // without having to receive a Request object.
+        $ip = $request->ip() ?: ($_SERVER['REMOTE_ADDR'] ?? '');
+        $device = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        \app\service\RequestContext::set((string)$ip, (string)$device);
+
         return $next($request);
     }
 

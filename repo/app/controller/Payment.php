@@ -44,25 +44,49 @@ class Payment
         return json(PaymentService::getReceipt($id, $user), 200);
     }
 
-    /** GET /exports/ledger */
+    /** GET /exports/ledger?format=csv|xlsx */
     public function ledger(Request $request): Response
     {
         $traceId = \app\middleware\TraceId::getId();
         $user = AuthContext::user();
         $from = $request->get('from', '2020-01-01');
         $to = $request->get('to', date('Y-m-d'));
-        $csv = ExportService::ledger($user, $from, $to, 'csv', $traceId);
-        return response($csv, 200, ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="ledger.csv"']);
+        $format = strtolower((string)$request->get('format', 'csv'));
+        if (!in_array($format, ['csv', 'xlsx'], true)) {
+            throw new \think\exception\HttpException(400, 'format must be csv or xlsx');
+        }
+
+        $bytes = ExportService::ledger($user, $from, $to, $format, $traceId);
+        return response($bytes, 200, self::exportHeaders($format, 'ledger'));
     }
 
-    /** GET /exports/reconciliation */
+    /** GET /exports/reconciliation?format=csv|xlsx */
     public function reconciliation(Request $request): Response
     {
         $traceId = \app\middleware\TraceId::getId();
         $user = AuthContext::user();
         $from = $request->get('from', '2020-01-01');
         $to = $request->get('to', date('Y-m-d'));
-        $csv = ExportService::reconciliation($user, $from, $to, 'csv', $traceId);
-        return response($csv, 200, ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="reconciliation.csv"']);
+        $format = strtolower((string)$request->get('format', 'csv'));
+        if (!in_array($format, ['csv', 'xlsx'], true)) {
+            throw new \think\exception\HttpException(400, 'format must be csv or xlsx');
+        }
+
+        $bytes = ExportService::reconciliation($user, $from, $to, $format, $traceId);
+        return response($bytes, 200, self::exportHeaders($format, 'reconciliation'));
+    }
+
+    private static function exportHeaders(string $format, string $basename): array
+    {
+        if ($format === 'xlsx') {
+            return [
+                'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="' . $basename . '.xlsx"',
+            ];
+        }
+        return [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $basename . '.csv"',
+        ];
     }
 }

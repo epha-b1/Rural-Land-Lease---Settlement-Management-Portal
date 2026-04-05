@@ -73,10 +73,17 @@ class MessagingService
             throw new \think\exception\HttpException(400, "type={$type} requires an attachment");
         }
 
+        // Issue #8 remediation: encrypt message body at rest (AES-256-CBC).
+        // Plaintext never touches the `messages.body` column; decryption
+        // happens only at authorized read in getMessages().
+        $bodyEnc = ($content !== '' && $content !== null)
+            ? EncryptionService::encrypt((string)$content)
+            : null;
+
         $msgId = Db::table('messages')->insertGetId([
             'conversation_id' => $convId,
             'sender_id'       => $user['id'],
-            'body'            => $content,
+            'body'            => $bodyEnc,
             'message_type'    => $type,
             'attachment_id'   => $attachmentId,
             'risk_result'     => $risk['action'] !== 'allow' ? $risk['action'] : null,
@@ -126,7 +133,14 @@ class MessagingService
             );
         }
 
+        // Checksum is computed over the PLAINTEXT bytes so tamper detection
+        // verifies the original content, not the ciphertext.
         $checksum = hash('sha256', $binary);
+
+        // Issue #8 remediation: attachment files are stored as ciphertext on
+        // disk (AES-256-CBC). Plaintext bytes never touch the filesystem.
+        // The `.enc` suffix marks the on-disk format for operators.
+        $encrypted = EncryptionService::encrypt($binary);
 
         // Store under /app/storage/uploads/ with checksum-prefixed path to avoid collisions
         $uploadDir = '/app/storage/uploads';
@@ -134,8 +148,8 @@ class MessagingService
             @mkdir($uploadDir, 0755, true);
         }
         $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $fileName);
-        $storagePath = $uploadDir . '/' . substr($checksum, 0, 16) . '_' . $safeName;
-        if (@file_put_contents($storagePath, $binary) === false) {
+        $storagePath = $uploadDir . '/' . substr($checksum, 0, 16) . '_' . $safeName . '.enc';
+        if (@file_put_contents($storagePath, $encrypted) === false) {
             throw new \think\exception\HttpException(500, 'failed to persist attachment');
         }
 
@@ -146,6 +160,44 @@ class MessagingService
             'storage_path'    => $storagePath,
             'checksum_sha256' => $checksum,
         ]);
+    }
+
+    /**
+     * Authorized read of an attachment's plaintext bytes.
+     * Callers must verify the caller has access to the containing message
+     * before calling this (e.g. via getMessages scope check).
+     *
+     * @throws \think\exception\HttpException 404 if not found, 500 on tamper.
+     */
+    public static function readAttachmentPlaintext(int $attachmentId): array
+    {
+        $att = Db::table('attachments')->where('id', $attachmentId)->find();
+        if (!$att) throw new \think\exception\HttpException(404, 'Attachment not found');
+
+        $stored = @file_get_contents($att['storage_path']);
+        if ($stored === false) {
+            throw new \think\exception\HttpException(500, 'attachment file missing');
+        }
+
+        // New encrypted format uses .enc suffix; decrypt transparently.
+        if (str_ends_with((string)$att['storage_path'], '.enc')) {
+            $plaintext = EncryptionService::decrypt($stored);
+        } else {
+            // Legacy plaintext format
+            $plaintext = $stored;
+        }
+
+        // Checksum verification — reject on tamper
+        if (hash('sha256', $plaintext) !== $att['checksum_sha256']) {
+            throw new \think\exception\HttpException(500, 'attachment checksum mismatch (tamper detected)');
+        }
+
+        return [
+            'file_name'  => $att['file_name'],
+            'mime_type'  => $att['mime_type'],
+            'size_bytes' => (int)$att['size_bytes'],
+            'bytes'      => $plaintext,
+        ];
     }
 
     public static function getMessages(int $convId, array $user, array $filters = []): array
@@ -162,10 +214,46 @@ class MessagingService
         $total = $query->count();
         $items = $query->order('created_at', 'desc')->limit(($page - 1) * $size, $size)->select()->toArray();
 
-        // Replace recalled message content
+        // Issue #9 remediation: mark messages as read for recipients.
+        // A message is "read" by a user iff:
+        //   - the user is NOT the sender
+        //   - the message is not already marked read
+        //   - the message has not been recalled
+        // This is effectively an automatic read indicator on fetch.
+        $userId = (int)$user['id'];
+        $toMarkRead = [];
+        foreach ($items as $msg) {
+            if ((int)$msg['sender_id'] !== $userId
+                && empty($msg['read_at'])
+                && empty($msg['recalled_at'])) {
+                $toMarkRead[] = (int)$msg['id'];
+            }
+        }
+        if (!empty($toMarkRead)) {
+            Db::table('messages')
+                ->whereIn('id', $toMarkRead)
+                ->update(['read_at' => date('Y-m-d H:i:s')]);
+        }
+
+        // Issue #8 remediation: decrypt message bodies on authorized read.
+        // Recalled messages show a placeholder and never decrypt.
         foreach ($items as &$msg) {
             if (!empty($msg['recalled_at'])) {
                 $msg['body'] = '[This message was recalled]';
+                continue;
+            }
+            if (!empty($msg['body'])) {
+                // New ciphertext (base64 w/ non-[A-Za-z0-9] chars) vs legacy
+                // plaintext rows — detect and decrypt.
+                try {
+                    $msg['body'] = EncryptionService::decrypt($msg['body']);
+                } catch (\Throwable $e) {
+                    // Legacy plaintext (pre-remediation) — leave as-is.
+                }
+            }
+            // Patch read_at in returned rows if we just set it.
+            if (in_array((int)$msg['id'], $toMarkRead, true) && empty($msg['read_at'])) {
+                $msg['read_at'] = date('Y-m-d H:i:s');
             }
         }
 
@@ -188,19 +276,55 @@ class MessagingService
             throw new \think\exception\HttpException(409, 'Recall window expired (10 minutes)');
         }
 
+        // Policy: a recalled message must not retain any reference to its
+        // content — body, attachment linkage, and (if safe) the underlying
+        // attachment file are all cleared. The attachment row itself is
+        // orphaned (kept for audit), but the on-disk ciphertext file is
+        // removed so a later filesystem read cannot reveal anything.
+        $previousAttachmentId = !empty($msg['attachment_id']) ? (int)$msg['attachment_id'] : null;
+
         Db::table('messages')->where('id', $messageId)->update([
-            'recalled_at' => date('Y-m-d H:i:s'),
-            'body'        => null,
+            'recalled_at'   => date('Y-m-d H:i:s'),
+            'body'          => null,
+            'attachment_id' => null,
         ]);
 
-        LogService::info('message_recalled', ['message_id' => $messageId], $traceId);
+        if ($previousAttachmentId !== null) {
+            // Best-effort scrub: remove the encrypted on-disk payload. The
+            // attachments row stays (for immutable audit trace) but the
+            // bytes it points to no longer exist.
+            $att = Db::table('attachments')->where('id', $previousAttachmentId)->find();
+            if ($att && !empty($att['storage_path']) && is_file($att['storage_path'])) {
+                @unlink($att['storage_path']);
+            }
+        }
+
+        LogService::info('message_recalled', [
+            'message_id'             => $messageId,
+            'cleared_attachment_id'  => $previousAttachmentId,
+        ], $traceId);
+
         return ['message_id' => $messageId, 'recalled' => true];
     }
 
-    public static function report(int $messageId, array $data, array $user, string $traceId = ''): array
+    public static function report(int $messageId, array $data, array $user, string $traceId = '', string $ip = '', string $device = ''): array
     {
         $msg = Db::table('messages')->where('id', $messageId)->find();
         if (!$msg) throw new \think\exception\HttpException(404, 'Message not found');
+
+        // Issue #6 remediation: enforce object-level authorization.
+        // A user may only report messages that live in a conversation
+        // within their effective geographic scope (base scope or active
+        // delegation). Without this check, any authenticated user that
+        // guessed a message ID could file reports against messages in
+        // scopes they do not own.
+        $conv = Db::table('conversations')->where('id', $msg['conversation_id'])->find();
+        if (!$conv) {
+            throw new \think\exception\HttpException(404, 'Conversation not found');
+        }
+        if (!ScopeService::canAccess($user, $conv['scope_level'], (int)$conv['scope_id'])) {
+            throw new \think\exception\HttpException(403, 'Message outside your scope');
+        }
 
         $category = $data['category'] ?? '';
         $reason = $data['reason'] ?? '';
@@ -215,7 +339,20 @@ class MessagingService
             'reason'      => $reason,
         ]);
 
-        LogService::info('message_reported', ['report_id' => $reportId], $traceId);
+        LogService::info('message_reported', ['report_id' => $reportId, 'message_id' => $messageId], $traceId);
+
+        AuditService::log(
+            'message_reported',
+            (int)$user['id'],
+            'message',
+            $messageId,
+            null,
+            ['report_id' => $reportId, 'category' => $category, 'reason' => $reason, 'conversation_id' => (int)$msg['conversation_id']],
+            $ip,
+            $device,
+            $traceId
+        );
+
         return ['report_id' => $reportId];
     }
 }

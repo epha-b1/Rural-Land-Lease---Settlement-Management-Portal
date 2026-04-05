@@ -47,8 +47,8 @@ class RefundService
             $invoiceId,
             ['balance_cents' => $beforeBalance],
             ['refund_id' => $refundId, 'amount_cents' => $amountCents, 'reason' => $reason, 'balance_cents' => max($balanceCents, 0)],
-            '',
-            '',
+            RequestContext::ip(),
+            RequestContext::device(),
             $traceId
         );
 

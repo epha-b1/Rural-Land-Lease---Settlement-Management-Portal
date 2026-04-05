@@ -85,8 +85,8 @@ class PaymentService
             $invoiceId,
             $beforeInvoice,
             ['status' => 'paid', 'payment_id' => $paymentId, 'amount_cents' => $amountCents, 'method' => $method, 'balance_cents' => max($balanceCents, 0)],
-            '',
-            '',
+            RequestContext::ip(),
+            RequestContext::device(),
             $traceId
         );
 

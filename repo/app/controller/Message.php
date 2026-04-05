@@ -7,10 +7,33 @@ use think\Request;
 use think\Response;
 use think\facade\Db;
 use app\service\MessagingService;
+use app\service\RiskService;
 use app\service\AuthContext;
 
 class Message
 {
+    /**
+     * POST /messages/preflight-risk  (Issue I-12 remediation)
+     *
+     * Evaluates the risk keyword library against candidate content WITHOUT
+     * persisting anything. The UI calls this before submitting /messages so
+     * it can surface a warn/block decision up-front. Server-side
+     * enforcement is still applied on the real /messages call — this
+     * endpoint is purely advisory UX.
+     *
+     * Request:  { "content": "<text>" }
+     * Response: { "action": "allow|warn|block|flag", "warning": "..." | null }
+     */
+    public function preflightRisk(Request $request): Response
+    {
+        $content = (string)$request->post('content', '');
+        $risk = RiskService::check($content);
+        return json([
+            'action'  => $risk['action'],
+            'warning' => $risk['warning'],
+        ], 200);
+    }
+
     public function conversations(Request $request): Response
     {
         $user = AuthContext::user();
@@ -48,7 +71,9 @@ class Message
     {
         $id = (int)$request->param('id');
         $user = AuthContext::user();
-        return json(MessagingService::report($id, $request->post(), $user, \app\middleware\TraceId::getId()), 201);
+        $ip = $request->ip() ?: '';
+        $device = $request->header('user-agent', '') ?: '';
+        return json(MessagingService::report($id, $request->post(), $user, \app\middleware\TraceId::getId(), $ip, $device), 201);
     }
 
     /** GET /admin/risk-keywords */
