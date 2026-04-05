@@ -10,6 +10,7 @@ use app\service\AuthService;
 use app\service\AuthContext;
 use app\service\MfaService;
 use app\service\LogService;
+use app\service\CaptchaService;
 
 class Auth
 {
@@ -20,6 +21,12 @@ class Auth
     {
         $traceId = \app\middleware\TraceId::getId();
         $data = $request->post();
+
+        // CAPTCHA required (offline local challenge)
+        CaptchaService::verifyAndConsume(
+            $data['captcha_id'] ?? null,
+            $data['captcha_answer'] ?? null
+        );
 
         $result = AuthService::register($data, $traceId);
 
@@ -35,11 +42,16 @@ class Auth
         $username = $request->post('username', '');
         $password = $request->post('password', '');
         $totpCode = $request->post('totp_code');
+        $captchaId = $request->post('captcha_id');
+        $captchaAnswer = $request->post('captcha_answer');
         $ip = $request->ip();
 
         if (empty($username) || empty($password)) {
             throw new \think\exception\HttpException(400, 'Username and password are required');
         }
+
+        // CAPTCHA required (offline local challenge)
+        CaptchaService::verifyAndConsume($captchaId, $captchaAnswer);
 
         $result = AuthService::login($username, $password, $totpCode, $ip, $traceId);
 

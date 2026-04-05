@@ -24,7 +24,8 @@ class InvoiceService
             ->join('contracts c', 'i.contract_id = c.id')
             ->field('i.*');
 
-        $query = ScopeService::applyScope($query->where('1=1'), $user);
+        // Qualify scope column with `c.` alias to avoid ambiguity in joined query
+        $query = ScopeService::applyScope($query->where('1=1'), $user, 'c.geo_scope_id');
 
         if (!empty($filters['contract_id'])) $query->where('i.contract_id', (int)$filters['contract_id']);
         if (!empty($filters['status'])) $query->where('i.status', $filters['status']);

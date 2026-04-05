@@ -25,6 +25,8 @@ class RefundService
             throw new \think\exception\HttpException(403, 'Outside your scope');
         }
 
+        $beforeBalance = (int)$invoice['amount_cents'] - (int)Db::table('refunds')->where('invoice_id', $invoiceId)->sum('amount_cents');
+
         $refundId = Db::table('refunds')->insertGetId([
             'invoice_id'  => $invoiceId,
             'amount_cents' => $amountCents,
@@ -36,6 +38,19 @@ class RefundService
         $balanceCents = (int)$invoice['amount_cents'] - $totalRefunded;
 
         LogService::info('refund_issued', ['refund_id' => $refundId, 'invoice_id' => $invoiceId], $traceId);
+
+        // Append-only audit (prompt: refund actions with before/after balance)
+        AuditService::log(
+            'refund_issued',
+            (int)$user['id'],
+            'invoice',
+            $invoiceId,
+            ['balance_cents' => $beforeBalance],
+            ['refund_id' => $refundId, 'amount_cents' => $amountCents, 'reason' => $reason, 'balance_cents' => max($balanceCents, 0)],
+            '',
+            '',
+            $traceId
+        );
 
         return ['refund_id' => $refundId, 'invoice_balance_cents' => max($balanceCents, 0)];
     }

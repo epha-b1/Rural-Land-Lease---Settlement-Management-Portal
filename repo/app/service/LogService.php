@@ -43,8 +43,12 @@ class LogService
 
         $line = json_encode($entry, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-        // Write to structured log file
-        $logDir = runtime_path() . 'log/';
+        // Resolve runtime directory. Prefer the ThinkPHP helper when bootstrapped,
+        // fall back to a path relative to this file so the service works in
+        // PHPUnit tests and standalone CLI scripts (e.g. tools/scheduler.php).
+        $logDir = function_exists('runtime_path')
+            ? runtime_path() . 'log/'
+            : dirname(__DIR__, 2) . '/runtime/log/';
         if (!is_dir($logDir)) {
             @mkdir($logDir, 0755, true);
         }

@@ -27,8 +27,9 @@ class MessagingService
 
     public static function listConversations(array $user, array $filters = []): array
     {
+        // conversations table uses `scope_id` (not `geo_scope_id`)
         $query = Db::table('conversations');
-        $query = ScopeService::applyScope($query, $user);
+        $query = ScopeService::applyScope($query, $user, 'scope_id');
 
         $page = max((int)($filters['page'] ?? 1), 1);
         $size = min(max((int)($filters['size'] ?? 20), 1), 100);
@@ -62,21 +63,89 @@ class MessagingService
             throw new \think\exception\HttpException(409, 'Message blocked by content policy');
         }
 
+        // Attachment handling (optional) - validates type/size, stores local copy with SHA256 checksum
+        $attachmentId = null;
+        if (!empty($data['attachment'])) {
+            $attachmentId = self::processAttachment($data['attachment']);
+        }
+        // voice/image type require an attachment
+        if (in_array($type, ['voice', 'image'], true) && $attachmentId === null) {
+            throw new \think\exception\HttpException(400, "type={$type} requires an attachment");
+        }
+
         $msgId = Db::table('messages')->insertGetId([
             'conversation_id' => $convId,
             'sender_id'       => $user['id'],
             'body'            => $content,
             'message_type'    => $type,
+            'attachment_id'   => $attachmentId,
             'risk_result'     => $risk['action'] !== 'allow' ? $risk['action'] : null,
         ]);
 
-        LogService::info('message_sent', ['message_id' => $msgId, 'risk' => $risk['action']], $traceId);
+        LogService::info('message_sent', ['message_id' => $msgId, 'risk' => $risk['action'], 'attachment_id' => $attachmentId], $traceId);
 
         return [
-            'message_id'  => $msgId,
-            'risk_action' => $risk['action'],
-            'warning'     => $risk['warning'],
+            'message_id'    => $msgId,
+            'risk_action'   => $risk['action'],
+            'warning'       => $risk['warning'],
+            'attachment_id' => $attachmentId,
         ];
+    }
+
+    /**
+     * Process and persist an attachment.
+     * Expected shape: ['file_name' => string, 'mime_type' => string, 'data_base64' => string]
+     * Validates MIME allowlist, 10MB size cap, stores locally, records SHA-256 checksum.
+     *
+     * @return int attachment row id
+     * @throws \think\exception\HttpException 413 oversized, 400 invalid input, 415 bad mime
+     */
+    public static function processAttachment(array $att): int
+    {
+        $fileName = trim((string)($att['file_name'] ?? ''));
+        $mimeType = strtolower(trim((string)($att['mime_type'] ?? '')));
+        $dataB64  = (string)($att['data_base64'] ?? '');
+
+        if ($fileName === '' || $mimeType === '' || $dataB64 === '') {
+            throw new \think\exception\HttpException(400, 'attachment requires file_name, mime_type, and data_base64');
+        }
+
+        if (!in_array($mimeType, self::ALLOWED_MIME_TYPES, true)) {
+            throw new \think\exception\HttpException(400, "attachment mime_type '{$mimeType}' not allowed");
+        }
+
+        $binary = base64_decode($dataB64, true);
+        if ($binary === false) {
+            throw new \think\exception\HttpException(400, 'attachment data_base64 is not valid base64');
+        }
+
+        $sizeBytes = strlen($binary);
+        if ($sizeBytes > self::MAX_ATTACHMENT_BYTES) {
+            throw new \think\exception\HttpException(413,
+                "attachment size {$sizeBytes} exceeds max " . self::MAX_ATTACHMENT_BYTES . " bytes (10 MB)"
+            );
+        }
+
+        $checksum = hash('sha256', $binary);
+
+        // Store under /app/storage/uploads/ with checksum-prefixed path to avoid collisions
+        $uploadDir = '/app/storage/uploads';
+        if (!is_dir($uploadDir)) {
+            @mkdir($uploadDir, 0755, true);
+        }
+        $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $fileName);
+        $storagePath = $uploadDir . '/' . substr($checksum, 0, 16) . '_' . $safeName;
+        if (@file_put_contents($storagePath, $binary) === false) {
+            throw new \think\exception\HttpException(500, 'failed to persist attachment');
+        }
+
+        return (int)Db::table('attachments')->insertGetId([
+            'file_name'       => $fileName,
+            'mime_type'       => $mimeType,
+            'size_bytes'      => $sizeBytes,
+            'storage_path'    => $storagePath,
+            'checksum_sha256' => $checksum,
+        ]);
     }
 
     public static function getMessages(int $convId, array $user, array $filters = []): array

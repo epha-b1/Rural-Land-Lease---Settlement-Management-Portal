@@ -189,6 +189,10 @@ class AuthFlowTest extends TestCase
 
     private function post(string $path, array $body, ?string $token = null, bool $includeHeaders = false): array
     {
+        // Remediation Issue #1: auto-inject CAPTCHA for public auth endpoints
+        if (in_array($path, ['/auth/login', '/auth/register'], true) && !isset($body['captcha_id'])) {
+            $body = array_merge($body, $this->autoCaptcha());
+        }
         $ch = curl_init($this->baseUrl . $path);
         $headers = ['Content-Type: application/json'];
         if ($token) $headers[] = 'Authorization: Bearer ' . $token;
@@ -217,6 +221,21 @@ class AuthFlowTest extends TestCase
         }
         curl_close($ch);
         return $result;
+    }
+
+    private function autoCaptcha(): array
+    {
+        $ch = curl_init($this->baseUrl . '/auth/captcha');
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5]);
+        $raw = curl_exec($ch); curl_close($ch);
+        $d = json_decode($raw, true) ?: [];
+        $q = $d['question'] ?? '';
+        if (preg_match('/(-?\d+)\s*([+\-*])\s*(-?\d+)/', $q, $m)) {
+            $a = (int)$m[1]; $op = $m[2]; $b = (int)$m[3];
+            $ans = match ($op) { '+' => $a + $b, '-' => $a - $b, '*' => $a * $b, default => 0 };
+            return ['captcha_id' => $d['challenge_id'] ?? '', 'captcha_answer' => (string)$ans];
+        }
+        return ['captcha_id' => '', 'captcha_answer' => ''];
     }
 
     private function get(string $path, ?string $token = null): array

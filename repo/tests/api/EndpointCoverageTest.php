@@ -227,6 +227,54 @@ class EndpointCoverageTest extends TestCase
         $this->assertEquals(404, $resp['status']);
     }
 
+    // ── GET /contracts (list) ─────────────────────────────────
+
+    public function testContractListHappyPath(): void
+    {
+        // seed a contract so list is non-empty
+        $this->seedContractInvoice($this->farmerToken);
+        $resp = $this->get('/contracts', $this->farmerToken);
+        $this->assertEquals(200, $resp['status']);
+        $this->assertArrayHasKey('items', $resp['data']);
+        $this->assertArrayHasKey('total', $resp['data']);
+        $this->assertGreaterThanOrEqual(1, $resp['data']['total']);
+    }
+
+    public function testContractListRequiresAuth(): void
+    {
+        $resp = $this->get('/contracts');
+        $this->assertEquals(401, $resp['status']);
+    }
+
+    // ── GET /conversations (list) ─────────────────────────────
+
+    public function testConversationListHappyPath(): void
+    {
+        // create a conversation first
+        $this->post('/conversations', [], $this->farmerToken);
+        $resp = $this->get('/conversations', $this->farmerToken);
+        $this->assertEquals(200, $resp['status']);
+        $this->assertArrayHasKey('items', $resp['data']);
+        $this->assertArrayHasKey('total', $resp['data']);
+    }
+
+    public function testConversationListRequiresAuth(): void
+    {
+        $resp = $this->get('/conversations');
+        $this->assertEquals(401, $resp['status']);
+    }
+
+    // ── GET /auth/captcha (public CAPTCHA endpoint) ───────────
+
+    public function testCaptchaEndpointReturnsChallenge(): void
+    {
+        $resp = $this->get('/auth/captcha');
+        $this->assertEquals(200, $resp['status']);
+        $this->assertArrayHasKey('challenge_id', $resp['data']);
+        $this->assertArrayHasKey('question', $resp['data']);
+        $this->assertMatchesRegularExpression('/\d+\s*[+\-*]\s*\d+/', $resp['data']['question']);
+    }
+
     // ══════════════════════════════════════════════════════════
     //  Helpers
     // ══════════════════════════════════════════════════════════
@@ -240,6 +288,24 @@ class EndpointCoverageTest extends TestCase
         return $r['data']['access_token'];
     }
 
+    /**
+     * Fetch a CAPTCHA challenge and compute the answer.
+     * Used to auto-inject captcha credentials on /auth/register and /auth/login.
+     */
+    private function autoCaptcha(): array
+    {
+        $ch = curl_init($this->baseUrl . '/auth/captcha');
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5]);
+        $raw = curl_exec($ch); curl_close($ch);
+        $d = json_decode($raw, true) ?: [];
+        if (preg_match('/(-?\d+)\s*([+\-*])\s*(-?\d+)/', $d['question'] ?? '', $m)) {
+            $a = (int)$m[1]; $op = $m[2]; $b = (int)$m[3];
+            $ans = match ($op) { '+' => $a + $b, '-' => $a - $b, '*' => $a * $b, default => 0 };
+            return ['captcha_id' => $d['challenge_id'] ?? '', 'captcha_answer' => (string)$ans];
+        }
+        return ['captcha_id' => '', 'captcha_answer' => ''];
+    }
+
     private function seedContractInvoice(string $token): int
     {
         $prof = $this->post('/entities', ['entity_type' => 'farmer', 'display_name' => 'CovSeed ' . microtime(true), 'address' => 'R'], $token);
@@ -250,6 +316,10 @@ class EndpointCoverageTest extends TestCase
 
     private function post(string $path, array $body, ?string $token = null): array
     {
+        // Auto-inject CAPTCHA for public auth entry points
+        if (in_array($path, ['/auth/register', '/auth/login'], true) && !isset($body['captcha_id'])) {
+            $body = array_merge($body, $this->autoCaptcha());
+        }
         return $this->request('POST', $path, $body, $token);
     }
 

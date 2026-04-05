@@ -43,17 +43,22 @@ class PaymentService
             throw new \think\exception\HttpException(409, 'Invoice already paid');
         }
 
+        // Encrypt sensitive bank reference if provided (prompt: AES-256 at rest)
+        $reference = $data['reference'] ?? null;
+        $referenceEnc = !empty($reference) ? EncryptionService::encrypt((string)$reference) : null;
+
         // Record payment
         $paymentId = Db::table('payments')->insertGetId([
             'invoice_id'  => $invoiceId,
             'amount_cents' => $amountCents,
             'paid_at'     => $paidAt,
             'method'      => $method,
-            'reference_enc' => $data['reference'] ?? null,
+            'reference_enc' => $referenceEnc,
             'posted_by'   => $user['id'],
         ]);
 
         // Transition invoice to paid
+        $beforeInvoice = ['status' => $invoice['status'], 'amount_cents' => $invoice['amount_cents']];
         InvoiceService::transition($invoiceId, 'paid', $traceId);
 
         // Get final balance
@@ -71,6 +76,19 @@ class PaymentService
         self::storeIdempotency($scopeKey, $user['id'], 201, $result);
 
         LogService::info('payment_posted', ['payment_id' => $paymentId, 'invoice_id' => $invoiceId], $traceId);
+
+        // Append-only audit log (prompt: payment actions with before/after values)
+        AuditService::log(
+            'payment_posted',
+            (int)$user['id'],
+            'invoice',
+            $invoiceId,
+            $beforeInvoice,
+            ['status' => 'paid', 'payment_id' => $paymentId, 'amount_cents' => $amountCents, 'method' => $method, 'balance_cents' => max($balanceCents, 0)],
+            '',
+            '',
+            $traceId
+        );
 
         return $result;
     }

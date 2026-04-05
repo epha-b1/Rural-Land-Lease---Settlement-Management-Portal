@@ -47,20 +47,22 @@ class Payment
     /** GET /exports/ledger */
     public function ledger(Request $request): Response
     {
+        $traceId = \app\middleware\TraceId::getId();
         $user = AuthContext::user();
         $from = $request->get('from', '2020-01-01');
         $to = $request->get('to', date('Y-m-d'));
-        $csv = ExportService::ledger($user, $from, $to);
+        $csv = ExportService::ledger($user, $from, $to, 'csv', $traceId);
         return response($csv, 200, ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="ledger.csv"']);
     }
 
     /** GET /exports/reconciliation */
     public function reconciliation(Request $request): Response
     {
+        $traceId = \app\middleware\TraceId::getId();
         $user = AuthContext::user();
         $from = $request->get('from', '2020-01-01');
         $to = $request->get('to', date('Y-m-d'));
-        $csv = ExportService::reconciliation($user, $from, $to);
+        $csv = ExportService::reconciliation($user, $from, $to, 'csv', $traceId);
         return response($csv, 200, ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="reconciliation.csv"']);
     }
 }

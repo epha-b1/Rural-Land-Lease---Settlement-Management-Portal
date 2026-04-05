@@ -39,8 +39,9 @@ class Verification
         $traceId = \app\middleware\TraceId::getId();
         $user = AuthContext::user();
         $data = $request->post();
+        $ip = $request->ip();
 
-        $result = VerificationService::submit($user['id'], $data, $traceId);
+        $result = VerificationService::submit($user['id'], $data, $traceId, $ip);
         return json($result, 201);
     }
 
@@ -51,8 +52,9 @@ class Verification
         $traceId = \app\middleware\TraceId::getId();
         $user = AuthContext::user();
         $note = $request->post('note');
+        $ip = $request->ip();
 
-        $result = VerificationService::approve($id, $user['id'], $note, $traceId);
+        $result = VerificationService::approve($id, $user['id'], $note, $traceId, $ip);
         return json($result, 200);
     }
 
@@ -63,8 +65,9 @@ class Verification
         $traceId = \app\middleware\TraceId::getId();
         $user = AuthContext::user();
         $reason = $request->post('reason', '');
+        $ip = $request->ip();
 
-        $result = VerificationService::reject($id, $user['id'], $reason, $traceId);
+        $result = VerificationService::reject($id, $user['id'], $reason, $traceId, $ip);
         return json($result, 200);
     }
 }

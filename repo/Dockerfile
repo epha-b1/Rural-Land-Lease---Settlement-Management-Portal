@@ -13,6 +13,14 @@ RUN apt-get update && apt-get install -y \
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# PHP runtime limits: 10 MB attachment cap needs ~13.3 MB after base64 overhead,
+# so we size the upload/post ceilings with comfortable headroom.
+RUN { \
+      echo "upload_max_filesize = 16M"; \
+      echo "post_max_size = 16M"; \
+      echo "memory_limit = 256M"; \
+    } > /usr/local/etc/php/conf.d/rural-lease.ini
+
 WORKDIR /app
 
 # Copy composer files and install dependencies first (layer cache)

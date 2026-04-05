@@ -43,11 +43,17 @@ class ScopeService
     }
 
     /**
-     * Apply scope filtering to a query builder on a table with
-     * geo_scope_level and geo_scope_id columns.
-     * Returns the modified query.
+     * Apply scope filtering to a query builder.
+     * Default column is `geo_scope_id` (used by entities, contracts, etc.).
+     * The `conversations` table uses `scope_id` instead, so callers on that
+     * table must pass 'scope_id' as $scopeIdColumn.
+     *
+     * @param mixed $query        Query builder
+     * @param array $user         Authenticated user context
+     * @param string $scopeIdColumn  Column name holding the geo area ID
+     * @return mixed Modified query
      */
-    public static function applyScope($query, array $user)
+    public static function applyScope($query, array $user, string $scopeIdColumn = 'geo_scope_id')
     {
         $scopeLevel = $user['geo_scope_level'];
         $scopeId = $user['geo_scope_id'];
@@ -58,7 +64,7 @@ class ScopeService
         }
 
         $visibleIds = self::getVisibleAreaIds($scopeLevel, $scopeId);
-        return $query->whereIn('geo_scope_id', $visibleIds);
+        return $query->whereIn($scopeIdColumn, $visibleIds);
     }
 
     /**

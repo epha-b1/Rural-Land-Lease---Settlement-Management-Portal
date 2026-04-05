@@ -61,6 +61,27 @@ class ContractService
             'invoices'    => $invoiceCount,
         ], $traceId);
 
+        // Append-only audit (prompt: contract edits / bill generation tracked)
+        AuditService::log(
+            'contract_created',
+            (int)$user['id'],
+            'contract',
+            (int)$contractId,
+            null,
+            [
+                'profile_id'   => $profileId,
+                'start_date'   => $startDate,
+                'end_date'     => $endDate,
+                'rent_cents'   => $rentCents,
+                'deposit_cents'=> $depositCents,
+                'frequency'    => $frequency,
+                'invoices_created' => $invoiceCount,
+            ],
+            '',
+            '',
+            $traceId
+        );
+
         return ['contract_id' => $contractId, 'invoices_created' => $invoiceCount];
     }
 

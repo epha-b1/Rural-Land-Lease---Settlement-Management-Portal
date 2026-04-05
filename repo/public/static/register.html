@@ -58,6 +58,22 @@
                                    placeholder="Geographic area ID" class="layui-input">
                         </div>
                     </div>
+                    <!-- CAPTCHA field (required by backend) -->
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">Verify</label>
+                        <div class="layui-input-inline" style="width: 120px;">
+                            <input type="text" readonly id="captcha-question" class="layui-input"
+                                   placeholder="Loading..." style="background:#f2f2f2;cursor:default;">
+                        </div>
+                        <div class="layui-input-inline" style="width: 150px;">
+                            <input type="text" name="captcha_answer" id="captcha-answer" required
+                                   placeholder="Answer" class="layui-input" autocomplete="off">
+                        </div>
+                        <button type="button" id="captcha-refresh" class="layui-btn layui-btn-sm layui-btn-primary"
+                                title="Refresh CAPTCHA">
+                            <i class="layui-icon layui-icon-refresh"></i>
+                        </button>
+                    </div>
                     <div class="layui-form-item">
                         <div class="layui-input-block">
                             <button type="submit" class="layui-btn layui-btn-fluid" lay-submit lay-filter="register">

@@ -73,10 +73,29 @@ class SecurityTest extends TestCase
 
     private function doPost(string $url, array $body): array
     {
+        // Auto-inject CAPTCHA for auth entry points
+        if ((str_contains($url, '/auth/register') || str_contains($url, '/auth/login')) && !isset($body['captcha_id'])) {
+            $baseUrl = getenv('API_BASE_URL') ?: 'http://localhost:8000';
+            $body = array_merge($body, $this->autoCaptcha($baseUrl));
+        }
         $ch = curl_init($url);
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10, CURLOPT_POST => true,
             CURLOPT_HTTPHEADER => ['Content-Type: application/json'], CURLOPT_POSTFIELDS => json_encode($body)]);
         $body = curl_exec($ch); $s = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
         return ['status' => $s, 'data' => json_decode($body, true)];
+    }
+
+    private function autoCaptcha(string $baseUrl): array
+    {
+        $ch = curl_init($baseUrl . '/auth/captcha');
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5]);
+        $raw = curl_exec($ch); curl_close($ch);
+        $d = json_decode($raw, true) ?: [];
+        if (preg_match('/(-?\d+)\s*([+\-*])\s*(-?\d+)/', $d['question'] ?? '', $m)) {
+            $a = (int)$m[1]; $op = $m[2]; $b = (int)$m[3];
+            $ans = match ($op) { '+' => $a + $b, '-' => $a - $b, '*' => $a * $b, default => 0 };
+            return ['captcha_id' => $d['challenge_id'] ?? '', 'captcha_answer' => (string)$ans];
+        }
+        return ['captcha_id' => '', 'captcha_answer' => ''];
     }
 }

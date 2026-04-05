@@ -116,36 +116,52 @@ class LockoutTest extends TestCase
 
     private function registerUser(string $username, string $password): void
     {
+        $captcha = $this->autoCaptcha();
         $ch = curl_init($this->baseUrl . '/auth/register');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => 10,
             CURLOPT_POST => true,
             CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_POSTFIELDS => json_encode([
+            CURLOPT_POSTFIELDS => json_encode(array_merge([
                 'username'        => $username,
                 'password'        => $password,
                 'role'            => 'farmer',
                 'geo_scope_level' => 'village',
                 'geo_scope_id'    => 3,
-            ]),
+            ], $captcha)),
         ]);
         curl_exec($ch);
         curl_close($ch);
     }
 
+    private function autoCaptcha(): array
+    {
+        $ch = curl_init($this->baseUrl . '/auth/captcha');
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5]);
+        $raw = curl_exec($ch); curl_close($ch);
+        $d = json_decode($raw, true) ?: [];
+        if (preg_match('/(-?\d+)\s*([+\-*])\s*(-?\d+)/', $d['question'] ?? '', $m)) {
+            $a = (int)$m[1]; $op = $m[2]; $b = (int)$m[3];
+            $ans = match ($op) { '+' => $a + $b, '-' => $a - $b, '*' => $a * $b, default => 0 };
+            return ['captcha_id' => $d['challenge_id'] ?? '', 'captcha_answer' => (string)$ans];
+        }
+        return ['captcha_id' => '', 'captcha_answer' => ''];
+    }
+
     private function attemptLogin(string $username, string $password): array
     {
+        $captcha = $this->autoCaptcha();
         $ch = curl_init($this->baseUrl . '/auth/login');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => 10,
             CURLOPT_POST => true,
             CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_POSTFIELDS => json_encode([
+            CURLOPT_POSTFIELDS => json_encode(array_merge([
                 'username' => $username,
                 'password' => $password,
-            ]),
+            ], $captcha)),
         ]);
         $body = curl_exec($ch);
         $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);

@@ -6,17 +6,29 @@ MAX_WAIT=90
 
 cd "$(dirname "$0")"
 
-# Step 1: Ensure containers are running
+# ──────────────────────────────────────────────────────────────────────────
+# Step 1: Ensure the Docker stack is up.
+#
+# This script is the single entry point for running tests. It detects the
+# current state of the compose stack and brings it up automatically so the
+# user never has to run `docker compose up` by hand.
+#
+#   • not running  → build images + start API and DB
+#   • unresponsive → tear down and rebuild from scratch
+#   • healthy      → skip startup, go straight to tests
+# ──────────────────────────────────────────────────────────────────────────
 api_running=$(docker compose ps --status running 2>/dev/null | grep -c "api" || true)
 if [ "$api_running" -eq 0 ]; then
-  echo "[1/4] Starting containers..."
+  echo "[1/4] Docker stack is down — building and starting containers..."
   docker compose up -d --build
+  echo "      Containers started."
 else
   if ! docker compose exec -T api wget -qO- "$HEALTH_URL" >/dev/null 2>&1; then
-    echo "[1/4] API unresponsive — restarting..."
+    echo "[1/4] API is unresponsive — tearing down and rebuilding..."
     docker compose down && docker compose up -d --build
+    echo "      Containers rebuilt."
   else
-    echo "[1/4] Containers already running"
+    echo "[1/4] Docker stack already up and healthy — skipping startup."
   fi
 fi
 

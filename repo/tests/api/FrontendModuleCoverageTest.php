@@ -156,6 +156,41 @@ class FrontendModuleCoverageTest extends TestCase
         $this->assertStringContainsString('system_admin', $body);
     }
 
+    // ── Remaining page sections (dashboard, health, mfa, verifications) ──
+
+    public function testIndexHasDashboardSection(): void
+    {
+        $html = $this->fetch('/static/index.html');
+        $this->assertStringContainsString('data-page="dashboard"', $html, 'Dashboard nav link must exist');
+        $this->assertStringContainsString('page-dashboard', $html, 'Dashboard page div must exist');
+        $this->assertStringContainsString('System Status', $html, 'Dashboard must show system status card');
+    }
+
+    public function testIndexHasHealthSection(): void
+    {
+        $html = $this->fetch('/static/index.html');
+        $this->assertStringContainsString('data-page="health"', $html, 'Health nav link must exist');
+        $this->assertStringContainsString('page-health', $html, 'Health page div must exist');
+        $this->assertStringContainsString('health-table', $html, 'Health detail table must exist');
+    }
+
+    public function testIndexHasMfaSection(): void
+    {
+        $html = $this->fetch('/static/index.html');
+        $this->assertStringContainsString('data-page="mfa"', $html, 'MFA nav link must exist');
+        $this->assertStringContainsString('page-mfa', $html, 'MFA page div must exist');
+        $this->assertStringContainsString('btn-mfa-enroll', $html, 'MFA enroll button must exist');
+        $this->assertStringContainsString('btn-mfa-verify', $html, 'MFA verify button must exist');
+    }
+
+    public function testIndexHasVerificationsSection(): void
+    {
+        $html = $this->fetch('/static/index.html');
+        $this->assertStringContainsString('data-page="verifications"', $html, 'Verifications nav link must exist');
+        $this->assertStringContainsString('page-verifications', $html, 'Verifications page div must exist');
+        $this->assertStringContainsString('verif-table', $html, 'Verifications table must exist');
+    }
+
     private function fetch(string $path): string
     {
         $ch = curl_init($this->baseUrl . $path);

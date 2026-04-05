@@ -176,6 +176,9 @@ class AuthMfaTest extends TestCase
 
     private function post(string $path, array $body, ?string $token = null): array
     {
+        if (in_array($path, ['/auth/register', '/auth/login'], true) && !isset($body['captcha_id'])) {
+            $body = array_merge($body, $this->autoCaptcha());
+        }
         $ch = curl_init($this->baseUrl . $path);
         $headers = ['Content-Type: application/json'];
         if ($token) $headers[] = 'Authorization: Bearer ' . $token;
@@ -192,6 +195,20 @@ class AuthMfaTest extends TestCase
         curl_close($ch);
 
         return ['status' => $status, 'data' => json_decode($body, true)];
+    }
+
+    private function autoCaptcha(): array
+    {
+        $ch = curl_init($this->baseUrl . '/auth/captcha');
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5]);
+        $raw = curl_exec($ch); curl_close($ch);
+        $d = json_decode($raw, true) ?: [];
+        if (preg_match('/(-?\d+)\s*([+\-*])\s*(-?\d+)/', $d['question'] ?? '', $m)) {
+            $a = (int)$m[1]; $op = $m[2]; $b = (int)$m[3];
+            $ans = match ($op) { '+' => $a + $b, '-' => $a - $b, '*' => $a * $b, default => 0 };
+            return ['captcha_id' => $d['challenge_id'] ?? '', 'captcha_answer' => (string)$ans];
+        }
+        return ['captcha_id' => '', 'captcha_answer' => ''];
     }
 
     // Minimal TOTP implementation for testing

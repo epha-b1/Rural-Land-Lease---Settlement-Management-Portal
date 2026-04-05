@@ -19,13 +19,18 @@ class VerificationService
 
     /**
      * Submit a new verification request.
+     * Sensitive fields (government ID number, business license number) are
+     * AES-256 encrypted before storage; raw values never touch the DB.
      */
-    public static function submit(int $userId, array $data, string $traceId = ''): array
+    public static function submit(int $userId, array $data, string $traceId = '', string $ip = ''): array
     {
+        $idNumber = $data['id_number'] ?? null;
+        $licenseNumber = $data['license_number'] ?? null;
+
         $id = Db::table('verification_requests')->insertGetId([
             'user_id'            => $userId,
-            'id_number_enc'      => $data['id_number'] ?? null,
-            'license_number_enc' => $data['license_number'] ?? null,
+            'id_number_enc'      => !empty($idNumber) ? EncryptionService::encrypt((string)$idNumber) : null,
+            'license_number_enc' => !empty($licenseNumber) ? EncryptionService::encrypt((string)$licenseNumber) : null,
             'scan_path'          => $data['scan_path'] ?? null,
             'status'             => 'pending',
         ]);
@@ -35,6 +40,19 @@ class VerificationService
             'user_id'    => $userId,
         ], $traceId);
 
+        // Append-only audit log (prompt requirement: verification decisions and submissions tracked)
+        AuditService::log(
+            'verification_submitted',
+            $userId,
+            'verification_request',
+            (int)$id,
+            null,
+            ['status' => 'pending', 'has_id_number' => !empty($idNumber), 'has_license' => !empty($licenseNumber)],
+            $ip,
+            '',
+            $traceId
+        );
+
         return ['id' => $id, 'status' => 'pending'];
     }
 
@@ -42,7 +60,7 @@ class VerificationService
      * Approve a verification request.
      * @throws \think\exception\HttpException
      */
-    public static function approve(int $requestId, int $reviewerId, ?string $note = null, string $traceId = ''): array
+    public static function approve(int $requestId, int $reviewerId, ?string $note = null, string $traceId = '', string $ip = ''): array
     {
         $request = Db::table('verification_requests')->where('id', $requestId)->find();
         if (!$request) {
@@ -50,6 +68,8 @@ class VerificationService
         }
 
         self::validateTransition($request['status'], 'approved');
+
+        $before = ['status' => $request['status'], 'reviewed_at' => $request['reviewed_at'] ?? null];
 
         Db::table('verification_requests')
             ->where('id', $requestId)
@@ -70,6 +90,18 @@ class VerificationService
             'reviewer_id' => $reviewerId,
         ], $traceId);
 
+        AuditService::log(
+            'verification_approved',
+            $reviewerId,
+            'verification_request',
+            $requestId,
+            $before,
+            ['status' => 'approved', 'note' => $note],
+            $ip,
+            '',
+            $traceId
+        );
+
         return ['id' => $requestId, 'status' => 'approved'];
     }
 
@@ -77,7 +109,7 @@ class VerificationService
      * Reject a verification request. Reason is mandatory.
      * @throws \think\exception\HttpException
      */
-    public static function reject(int $requestId, int $reviewerId, string $reason, string $traceId = ''): array
+    public static function reject(int $requestId, int $reviewerId, string $reason, string $traceId = '', string $ip = ''): array
     {
         if (empty(trim($reason))) {
             throw new \think\exception\HttpException(400, 'Rejection reason is required');
@@ -89,6 +121,8 @@ class VerificationService
         }
 
         self::validateTransition($request['status'], 'rejected');
+
+        $before = ['status' => $request['status'], 'reviewed_at' => $request['reviewed_at'] ?? null];
 
         Db::table('verification_requests')
             ->where('id', $requestId)
@@ -109,6 +143,18 @@ class VerificationService
             'reviewer_id' => $reviewerId,
             'reason'      => $reason,
         ], $traceId);
+
+        AuditService::log(
+            'verification_rejected',
+            $reviewerId,
+            'verification_request',
+            $requestId,
+            $before,
+            ['status' => 'rejected', 'reason' => $reason],
+            $ip,
+            '',
+            $traceId
+        );
 
         return ['id' => $requestId, 'status' => 'rejected', 'reason' => $reason];
     }

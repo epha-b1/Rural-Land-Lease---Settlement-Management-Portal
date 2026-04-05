@@ -9,6 +9,7 @@ Route::get('/', function () {
 });
 
 // === Slice 2: Auth and Identity ===
+Route::get('auth/captcha', 'Captcha/generate');
 Route::post('auth/register', 'Auth/register');
 Route::post('auth/login', 'Auth/login');
 Route::post('auth/logout', 'Auth/logout')->middleware('authCheck');
@@ -62,6 +63,11 @@ Route::delete('admin/risk-keywords/:id', 'Message/deleteRiskKeyword')->middlewar
 
 // === Slice 7: Audit ===
 Route::get('audit-logs', 'Audit/index')->middleware('authCheck', 'system_admin')->completeMatch(true);
+
+// === Delegation workflow (county_admin two-person rule) ===
+Route::post('delegations/:id/approve', 'Delegation/approve')->middleware('authCheck', 'system_admin')->pattern(['id' => '\d+']);
+Route::get('delegations', 'Delegation/index')->middleware('authCheck', 'system_admin')->completeMatch(true);
+Route::post('delegations', 'Delegation/create')->middleware('authCheck', 'system_admin')->completeMatch(true);
 
 // === Slice 8: Admin, Jobs, Config, API Docs ===
 Route::get('api/docs', 'Admin/apiDocs');
