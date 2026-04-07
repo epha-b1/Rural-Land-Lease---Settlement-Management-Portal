@@ -25,6 +25,7 @@ Route::post('admin/users', 'Auth/adminCreateUser')->middleware('authCheck', 'sys
 // === Slice 3: Profiles, Verification, Scope ===
 
 // Entity profiles: specific routes BEFORE general list (order matters)
+Route::get('entities/field-definitions', 'Entity/fieldDefinitions')->middleware('authCheck')->completeMatch(true);
 Route::post('entities/:id/merge', 'Entity/merge')->middleware('authCheck')->pattern(['id' => '\d+']);
 Route::get('entities/:id', 'Entity/read')->middleware('authCheck')->pattern(['id' => '\d+']);
 Route::patch('entities/:id', 'Entity/update')->middleware('authCheck')->pattern(['id' => '\d+']);
@@ -34,6 +35,8 @@ Route::post('entities', 'Entity/create')->middleware('authCheck')->completeMatch
 // Verification - specific routes first
 Route::post('admin/verifications/:id/approve', 'Verification/approve')->middleware('authCheck', 'system_admin')->pattern(['id' => '\d+']);
 Route::post('admin/verifications/:id/reject', 'Verification/reject')->middleware('authCheck', 'system_admin')->pattern(['id' => '\d+']);
+// User-facing: check own verification status (must precede generic GET /verifications)
+Route::get('verifications/mine', 'Verification/mine')->middleware('authCheck')->completeMatch(true);
 Route::post('verifications', 'Verification/submit')->middleware('authCheck')->completeMatch(true);
 Route::get('verifications', 'Verification/index')->middleware('authCheck', 'system_admin')->completeMatch(true);
 
@@ -48,7 +51,7 @@ Route::get('invoices', 'Invoice/index')->middleware('authCheck')->completeMatch(
 
 // === Slice 5: Payments, Refunds, Exports ===
 Route::post('payments', 'Payment/create')->middleware('authCheck')->completeMatch(true);
-Route::post('refunds', 'Payment/refund')->middleware('authCheck')->completeMatch(true);
+Route::post('refunds', 'Payment/refund')->middleware('authCheck', 'system_admin')->completeMatch(true);
 Route::get('exports/ledger', 'Payment/ledger')->middleware('authCheck');
 Route::get('exports/reconciliation', 'Payment/reconciliation')->middleware('authCheck');
 

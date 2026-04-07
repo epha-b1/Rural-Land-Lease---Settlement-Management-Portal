@@ -312,8 +312,20 @@ class EntityService
         return ['id' => $id, 'duplicate_flag' => $duplicateFlag];
     }
 
+    /** Core profile columns that the resolution map may reference. */
+    private const MERGE_CORE_FIELDS = [
+        'display_name', 'address', 'id_last4', 'license_last4', 'entity_type',
+    ];
+
     /**
      * Merge two profiles: source into target.
+     *
+     * The `resolution_map` drives which field values survive on the target:
+     *   - core fields  : keys from MERGE_CORE_FIELDS, value "source" or "target"
+     *   - extra fields  : keys prefixed "ef_<key>",      value "source" or "target"
+     *
+     * The entire merge (apply + deactivate + flag close + history) is wrapped
+     * in a single DB transaction so a failure at any step rolls back cleanly.
      */
     public static function merge(int $sourceId, int $targetId, array $resolutionMap, array $user, string $traceId = ''): array
     {
@@ -330,36 +342,98 @@ class EntityService
             throw new \think\exception\HttpException(403, 'Access denied: profiles outside your scope');
         }
 
-        // Record merge history
-        $historyId = Db::table('profile_merge_history')->insertGetId([
-            'source_profile_id' => $sourceId,
-            'target_profile_id' => $targetId,
-            'merged_by'         => $user['id'],
-            'diff_json'         => json_encode([
-                'source' => $source,
-                'target' => $target,
-                'resolution' => $resolutionMap,
-            ]),
-        ]);
+        // ── Validate + build update set from resolution_map ──────────
+        $targetUpdate = [];
+        $sourceExtra = !empty($source['extra_fields_json'])
+            ? json_decode($source['extra_fields_json'], true) : [];
+        $targetExtra = !empty($target['extra_fields_json'])
+            ? json_decode($target['extra_fields_json'], true) : [];
+        $mergedExtra = $targetExtra; // start from target's extras
+        $extraTouched = false;
 
-        // Deactivate source
-        Db::table('entity_profiles')
-            ->where('id', $sourceId)
-            ->update(['status' => 'inactive']);
+        foreach ($resolutionMap as $key => $choice) {
+            if (!is_string($choice) || !in_array($choice, ['source', 'target'], true)) {
+                throw new \think\exception\HttpException(400,
+                    "resolution_map['{$key}'] must be 'source' or 'target'"
+                );
+            }
 
-        // Close related duplicate flags
-        Db::table('duplicate_flags')
-            ->where(function ($q) use ($sourceId, $targetId) {
-                $q->where('left_profile_id', $sourceId)->where('right_profile_id', $targetId);
-            })
-            ->whereOr(function ($q) use ($sourceId, $targetId) {
-                $q->where('left_profile_id', $targetId)->where('right_profile_id', $sourceId);
-            })
-            ->update(['status' => 'merged']);
+            // Extra-field key (frontend sends "ef_<field_key>")
+            if (str_starts_with($key, 'ef_')) {
+                $efKey = substr($key, 3);
+                if ($choice === 'source') {
+                    $mergedExtra[$efKey] = $sourceExtra[$efKey] ?? null;
+                }
+                // "target" means keep existing target value — already in $mergedExtra
+                $extraTouched = true;
+                continue;
+            }
+
+            // Core-field key
+            if (!in_array($key, self::MERGE_CORE_FIELDS, true)) {
+                throw new \think\exception\HttpException(400,
+                    "resolution_map contains unknown field '{$key}'"
+                );
+            }
+
+            if ($choice === 'source') {
+                $targetUpdate[$key] = $source[$key];
+            }
+            // "target" → keep existing value, nothing to write
+        }
+
+        if ($extraTouched) {
+            $targetUpdate['extra_fields_json'] = json_encode($mergedExtra);
+        }
+
+        // ── Atomic merge transaction ─────────────────────────────────
+        Db::startTrans();
+        try {
+            // 1. Apply resolved fields to target profile
+            if (!empty($targetUpdate)) {
+                Db::table('entity_profiles')
+                    ->where('id', $targetId)
+                    ->update($targetUpdate);
+            }
+
+            // 2. Record merge history (includes pre-merge snapshots + resolution)
+            $historyId = Db::table('profile_merge_history')->insertGetId([
+                'source_profile_id' => $sourceId,
+                'target_profile_id' => $targetId,
+                'merged_by'         => $user['id'],
+                'diff_json'         => json_encode([
+                    'source'     => $source,
+                    'target'     => $target,
+                    'resolution' => $resolutionMap,
+                    'applied'    => $targetUpdate,
+                ]),
+            ]);
+
+            // 3. Deactivate source
+            Db::table('entity_profiles')
+                ->where('id', $sourceId)
+                ->update(['status' => 'inactive']);
+
+            // 4. Close related duplicate flags
+            Db::table('duplicate_flags')
+                ->where(function ($q) use ($sourceId, $targetId) {
+                    $q->where('left_profile_id', $sourceId)->where('right_profile_id', $targetId);
+                })
+                ->whereOr(function ($q) use ($sourceId, $targetId) {
+                    $q->where('left_profile_id', $targetId)->where('right_profile_id', $sourceId);
+                })
+                ->update(['status' => 'merged']);
+
+            Db::commit();
+        } catch (\Throwable $e) {
+            Db::rollback();
+            throw $e;
+        }
 
         LogService::info('entity_merged', [
-            'source_id' => $sourceId,
-            'target_id' => $targetId,
+            'source_id'    => $sourceId,
+            'target_id'    => $targetId,
+            'fields_applied' => array_keys($targetUpdate),
         ], $traceId);
 
         return [

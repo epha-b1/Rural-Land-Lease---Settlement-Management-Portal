@@ -94,7 +94,12 @@ class InvoiceService
     }
 
     /**
-     * Mark overdue invoices (unpaid past due date). Called by daily job or endpoint.
+     * Mark overdue invoices (unpaid past due date) and apply late fees.
+     * Called by daily job or endpoint.
+     *
+     * Late-fee calculation is idempotent: fee = f(amount_cents, days_overdue)
+     * so repeated job runs simply recalculate from the current date without
+     * risk of double-applying.
      */
     public static function markOverdue(string $traceId = ''): int
     {
@@ -109,12 +114,50 @@ class InvoiceService
         foreach ($overdueInvoices as $inv) {
             try {
                 self::transition((int)$inv['id'], 'overdue', $traceId);
+                // Apply initial late fee on transition
+                $daysOverdue = max(0, (int)((strtotime($today) - strtotime($inv['due_date'])) / 86400));
+                $lateFee = LateFeeService::calculate((int)$inv['amount_cents'], $daysOverdue);
+                Db::table('invoices')->where('id', $inv['id'])->update(['late_fee_cents' => $lateFee]);
                 $count++;
             } catch (\Throwable $e) {
                 // Skip already transitioned
             }
         }
+
+        // Recalculate late fees for ALL currently overdue invoices.
+        // This handles daily accrual growth on repeat runs without double-applying,
+        // because the fee is a pure function of (amount, days_overdue).
+        self::updateLateFees($today, $traceId);
+
         return $count;
+    }
+
+    /**
+     * Idempotent late-fee recalculation for all overdue invoices.
+     * Safe to call on every scheduler tick — overwrites late_fee_cents with the
+     * correct value for today; no accumulation or drift.
+     */
+    public static function updateLateFees(string $asOfDate, string $traceId = ''): int
+    {
+        $overdueInvoices = Db::table('invoices')
+            ->where('status', 'overdue')
+            ->select()
+            ->toArray();
+
+        $updated = 0;
+        foreach ($overdueInvoices as $inv) {
+            $daysOverdue = max(0, (int)((strtotime($asOfDate) - strtotime($inv['due_date'])) / 86400));
+            $lateFee = LateFeeService::calculate((int)$inv['amount_cents'], $daysOverdue);
+            if ((int)$inv['late_fee_cents'] !== $lateFee) {
+                Db::table('invoices')->where('id', $inv['id'])->update(['late_fee_cents' => $lateFee]);
+                $updated++;
+            }
+        }
+
+        if ($updated > 0) {
+            LogService::info('late_fees_updated', ['count' => $updated, 'as_of' => $asOfDate], $traceId);
+        }
+        return $updated;
     }
 
     /**

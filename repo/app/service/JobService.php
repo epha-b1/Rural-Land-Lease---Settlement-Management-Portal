@@ -19,6 +19,8 @@ class JobService
     {
         $results = [];
 
+        // markOverdue now also calls updateLateFees internally,
+        // so late_fee_cents is persisted/refreshed on every run.
         $results['overdue_invoices'] = InvoiceService::markOverdue($traceId);
         $results['expired_delegations'] = self::expireDelegations($traceId);
         $results['message_retention'] = self::cleanRetention($traceId);

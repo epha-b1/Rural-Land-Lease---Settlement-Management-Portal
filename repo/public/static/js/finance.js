@@ -58,19 +58,20 @@ layui.use(['form', 'layer'], function () {
     window.loadInvoices = function () {
         var tbody = document.getElementById('invoices-tbody');
         if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
         ApiClient.get('/invoices').then(function (r) {
-            if (!r.ok) { tbody.innerHTML = '<tr><td colspan="6">Error loading</td></tr>'; return; }
+            if (!r.ok) { tbody.innerHTML = '<tr><td colspan="7">Error loading</td></tr>'; return; }
             var items = r.data.items || [];
-            if (!items.length) { tbody.innerHTML = '<tr><td colspan="6">No invoices</td></tr>'; return; }
+            if (!items.length) { tbody.innerHTML = '<tr><td colspan="7">No invoices</td></tr>'; return; }
             var h = '';
             for (var i = 0; i < items.length; i++) {
                 var inv = items[i];
                 var sc = inv.status === 'paid' ? 'color:#009688' : inv.status === 'overdue' ? 'color:#FF5722' : '';
                 h += '<tr><td>' + inv.id + '</td><td>' + inv.contract_id + '</td><td>' +
                     esc(inv.due_date) + '</td><td>$' + (inv.amount_cents / 100).toFixed(2) +
-                    '</td><td>$' + (inv.late_fee_cents / 100).toFixed(2) +
-                    '</td><td style="' + sc + '">' + esc(inv.status) + '</td></tr>';
+                    '</td><td>$' + ((inv.late_fee_cents || 0) / 100).toFixed(2) +
+                    '</td><td style="' + sc + '">' + esc(inv.status) +
+                    '</td><td><a class="layui-btn layui-btn-xs layui-btn-primary" onclick="openReceipt(' + inv.id + ')"><i class="layui-icon layui-icon-print"></i> Receipt</a></td></tr>';
             }
             tbody.innerHTML = h;
         });
@@ -101,6 +102,84 @@ layui.use(['form', 'layer'], function () {
         });
         return false;
     });
+
+    // === Receipt print flow ===
+    window.openReceipt = function (invoiceId) {
+        ApiClient.get('/invoices/' + invoiceId + '/receipt').then(function (r) {
+            if (!r.ok) {
+                layer.msg(r.data ? r.data.message : 'Failed to load receipt', { icon: 2 });
+                return;
+            }
+            var inv = r.data.invoice || {};
+            var con = r.data.contract || {};
+            var payments = r.data.payments || [];
+            var refunds = r.data.refunds || [];
+            var balance = r.data.balance_cents;
+
+            var html = '<div id="receipt-print-area" style="padding:20px;font-family:serif;">';
+            html += '<h2 style="text-align:center;margin-bottom:5px;">Rural Land Lease Portal</h2>';
+            html += '<h3 style="text-align:center;margin-top:0;">Payment Receipt</h3>';
+            html += '<hr>';
+            html += '<table class="layui-table" style="margin-bottom:10px;">';
+            html += '<tr><td width="150"><b>Invoice ID</b></td><td>' + inv.id + '</td></tr>';
+            html += '<tr><td><b>Contract ID</b></td><td>' + inv.contract_id + '</td></tr>';
+            html += '<tr><td><b>Profile ID</b></td><td>' + con.profile_id + '</td></tr>';
+            html += '<tr><td><b>Due Date</b></td><td>' + esc(inv.due_date || '') + '</td></tr>';
+            html += '<tr><td><b>Amount</b></td><td>$' + ((inv.amount_cents || 0) / 100).toFixed(2) + '</td></tr>';
+            html += '<tr><td><b>Late Fee</b></td><td>$' + ((inv.late_fee_cents || 0) / 100).toFixed(2) + '</td></tr>';
+            html += '<tr><td><b>Status</b></td><td>' + esc(inv.status || '') + '</td></tr>';
+            if (balance !== undefined) {
+                html += '<tr><td><b>Outstanding Balance</b></td><td>$' + (balance / 100).toFixed(2) + '</td></tr>';
+            }
+            html += '</table>';
+
+            if (payments.length > 0) {
+                html += '<h4>Payments</h4><table class="layui-table">';
+                html += '<thead><tr><th>ID</th><th>Amount</th><th>Method</th><th>Date</th></tr></thead><tbody>';
+                for (var i = 0; i < payments.length; i++) {
+                    var p = payments[i];
+                    html += '<tr><td>' + p.id + '</td><td>$' + ((p.amount_cents || 0) / 100).toFixed(2) +
+                        '</td><td>' + esc(p.method || '') + '</td><td>' + esc(p.paid_at || '') + '</td></tr>';
+                }
+                html += '</tbody></table>';
+            }
+
+            if (refunds.length > 0) {
+                html += '<h4>Refunds</h4><table class="layui-table">';
+                html += '<thead><tr><th>ID</th><th>Amount</th><th>Reason</th></tr></thead><tbody>';
+                for (var j = 0; j < refunds.length; j++) {
+                    var rf = refunds[j];
+                    html += '<tr><td>' + rf.id + '</td><td>$' + ((rf.amount_cents || 0) / 100).toFixed(2) +
+                        '</td><td>' + esc(rf.reason || '') + '</td></tr>';
+                }
+                html += '</tbody></table>';
+            }
+
+            html += '<div style="text-align:center;margin-top:20px;">';
+            html += '<button class="layui-btn" id="btn-print-receipt" onclick="printReceipt()"><i class="layui-icon layui-icon-print"></i> Print</button>';
+            html += '</div></div>';
+
+            layer.open({
+                type: 1, title: 'Receipt — Invoice #' + inv.id,
+                area: ['700px', '600px'],
+                content: html
+            });
+        });
+    };
+
+    window.printReceipt = function () {
+        var area = document.getElementById('receipt-print-area');
+        if (!area) return;
+        var win = window.open('', '_blank');
+        win.document.write('<!DOCTYPE html><html><head><title>Receipt</title>');
+        win.document.write('<style>body{font-family:serif;padding:20px;} table{width:100%;border-collapse:collapse;margin:10px 0;} td,th{border:1px solid #ccc;padding:6px 10px;text-align:left;} h2,h3,h4{margin:8px 0;} @media print{button,.no-print{display:none!important;}}</style>');
+        win.document.write('</head><body>');
+        win.document.write(area.innerHTML);
+        win.document.write('</body></html>');
+        win.document.close();
+        win.focus();
+        win.print();
+    };
 
     // === Export buttons (Issue I-13: CSV + XLSX) ===
     function buildExportUrl(kind, format) {

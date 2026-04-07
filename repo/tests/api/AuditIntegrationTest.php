@@ -129,23 +129,24 @@ class AuditIntegrationTest extends TestCase
 
     public function testRefundWritesAuditLog(): void
     {
-        $prof = $this->post('/entities', ['entity_type' => 'farmer', 'display_name' => 'AuditRef ' . microtime(true), 'address' => 'Y'], $this->farmerToken);
+        // Refunds now require system_admin; use admin for the full workflow
+        $prof = $this->post('/entities', ['entity_type' => 'farmer', 'display_name' => 'AuditRef ' . microtime(true), 'address' => 'Y'], $this->adminToken);
         $con = $this->post('/contracts', [
             'profile_id' => $prof['data']['id'], 'start_date' => '2027-01-01', 'end_date' => '2027-02-01',
             'rent_cents' => 50000, 'frequency' => 'monthly',
-        ], $this->farmerToken);
-        $detail = $this->get('/contracts/' . $con['data']['contract_id'], $this->farmerToken);
+        ], $this->adminToken);
+        $detail = $this->get('/contracts/' . $con['data']['contract_id'], $this->adminToken);
         $invId = $detail['data']['invoices'][0]['id'];
 
         $this->postWithIdempotency('/payments', [
             'invoice_id' => $invId, 'amount_cents' => 50000, 'paid_at' => '2027-01-15', 'method' => 'cash',
-        ], 'refpay-' . bin2hex(random_bytes(4)), $this->farmerToken);
+        ], 'refpay-' . bin2hex(random_bytes(4)), $this->adminToken);
 
         $before = $this->auditCount('refund_issued');
         $refund = $this->post('/refunds', [
             'invoice_id' => $invId, 'amount_cents' => 5000, 'reason' => 'audit test',
-        ], $this->farmerToken);
-        $this->assertEquals(201, $refund['status']);
+        ], $this->adminToken);
+        $this->assertEquals(201, $refund['status'], 'Refund: ' . json_encode($refund['data']));
         $after = $this->auditCount('refund_issued');
         $this->assertGreaterThan($before, $after);
     }

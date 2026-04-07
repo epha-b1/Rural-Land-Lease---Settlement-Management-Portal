@@ -48,8 +48,8 @@ class ContractService
             'maintenance_cents'=> $maintenanceCents,
             'frequency'        => $frequency,
             'status'           => 'active',
-            'geo_scope_level'  => $user['geo_scope_level'],
-            'geo_scope_id'     => $user['geo_scope_id'],
+            'geo_scope_level'  => $profile['geo_scope_level'],
+            'geo_scope_id'     => $profile['geo_scope_id'],
             'created_by'       => $user['id'],
         ]);
 

@@ -30,6 +30,11 @@ layui.use(['element', 'layer', 'util'], function () {
         var adminNav = document.getElementById('nav-admin');
         if (adminNav) adminNav.classList.remove('layui-hide');
     }
+    // Show verification nav for non-admin users
+    if (currentUser && currentUser.role !== 'system_admin') {
+        var verifNav = document.getElementById('nav-verification');
+        if (verifNav) verifNav.classList.remove('layui-hide');
+    }
 
     // === Logout ===
     var btnLogout = document.getElementById('btn-logout');
@@ -50,6 +55,7 @@ layui.use(['element', 'layer', 'util'], function () {
             showPage(target);
             if (target === 'health') refreshHealthDetail();
             if (target === 'mfa') refreshMfaStatus();
+            if (target === 'my-verification' && typeof loadMyVerification === 'function') loadMyVerification();
             if (target === 'entities' && typeof loadEntities === 'function') loadEntities();
             if (target === 'verifications' && typeof loadVerifications === 'function') loadVerifications();
             if (target === 'contracts' && typeof loadContracts === 'function') loadContracts();
@@ -57,6 +63,7 @@ layui.use(['element', 'layer', 'util'], function () {
             if (target === 'messaging' && typeof loadMessaging === 'function') loadMessaging();
             if (target === 'risk-rules' && typeof loadRiskRules === 'function') loadRiskRules();
             if (target === 'audit-logs' && typeof loadAuditLogs === 'function') loadAuditLogs();
+            if (target === 'delegations' && typeof loadDelegations === 'function') loadDelegations();
             if (target === 'admin-jobs' && typeof loadAdminJobs === 'function') loadAdminJobs();
             if (target === 'admin-config' && typeof loadAdminConfig === 'function') loadAdminConfig();
         });

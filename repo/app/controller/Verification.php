@@ -33,6 +33,42 @@ class Verification
         return json(['items' => $items, 'page' => $page, 'total' => $total], 200);
     }
 
+    /** GET /verifications/mine (user: check own verification status) */
+    public function mine(Request $request): Response
+    {
+        $user = AuthContext::user();
+        $userId = (int)$user['id'];
+
+        $latest = Db::table('verification_requests')
+            ->where('user_id', $userId)
+            ->order('submitted_at', 'desc')
+            ->find();
+
+        if (!$latest) {
+            return json(['status' => 'none', 'message' => 'No verification submitted yet'], 200);
+        }
+
+        $result = [
+            'id'           => $latest['id'],
+            'status'       => $latest['status'],
+            'submitted_at' => $latest['submitted_at'],
+            'reviewed_at'  => $latest['reviewed_at'],
+            'scan_path'    => $latest['scan_path'],
+        ];
+
+        // If rejected, include the rejection reason from the decision record
+        if ($latest['status'] === 'rejected') {
+            $decision = Db::table('verification_decisions')
+                ->where('request_id', $latest['id'])
+                ->where('decision', 'rejected')
+                ->order('created_at', 'desc')
+                ->find();
+            $result['rejection_reason'] = $decision ? $decision['reason'] : null;
+        }
+
+        return json($result, 200);
+    }
+
     /** POST /verifications (user: submit a verification request) */
     public function submit(Request $request): Response
     {
@@ -40,6 +76,17 @@ class Verification
         $user = AuthContext::user();
         $data = $request->post();
         $ip = $request->ip();
+
+        // Handle scan file upload if present
+        $scanPath = null;
+        $file = $request->file('scan_file');
+        if ($file) {
+            $savename = \think\facade\Filesystem::disk('public')->putFile('scans', $file);
+            $scanPath = $savename;
+            $data['scan_path'] = $scanPath;
+        } elseif (!empty($data['scan_path'])) {
+            // Accept scan_path from JSON body (for testing / alternative upload)
+        }
 
         $result = VerificationService::submit($user['id'], $data, $traceId, $ip);
         return json($result, 201);

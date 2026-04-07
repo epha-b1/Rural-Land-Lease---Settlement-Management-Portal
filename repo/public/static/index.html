@@ -43,6 +43,13 @@
                             <dd><a href="javascript:;" data-page="health">System Health</a></dd>
                         </dl>
                     </li>
+                    <!-- Verification (non-admin users) -->
+                    <li class="layui-nav-item non-admin-only layui-hide" id="nav-verification">
+                        <a href="javascript:;">Verification</a>
+                        <dl class="layui-nav-child">
+                            <dd><a href="javascript:;" data-page="my-verification">My Verification</a></dd>
+                        </dl>
+                    </li>
                     <!-- Entity profiles -->
                     <li class="layui-nav-item">
                         <a href="javascript:;">Profiles</a>
@@ -77,6 +84,7 @@
                             <dd><a href="javascript:;" data-page="verifications">Verifications</a></dd>
                             <dd><a href="javascript:;" data-page="risk-rules">Risk Keywords</a></dd>
                             <dd><a href="javascript:;" data-page="audit-logs">Audit Log</a></dd>
+                            <dd><a href="javascript:;" data-page="delegations">Delegations</a></dd>
                             <dd><a href="javascript:;" data-page="admin-jobs">Background Jobs</a></dd>
                             <dd><a href="javascript:;" data-page="admin-config">System Config</a></dd>
                         </dl>
@@ -193,6 +201,68 @@
                         </div>
                     </div>
                 </div>
+                <!-- User Verification page (non-admin: submit + check status) -->
+                <div id="page-my-verification" class="page-view">
+                    <div class="layui-row layui-col-space15">
+                        <div class="layui-col-md8">
+                            <div class="layui-card">
+                                <div class="layui-card-header">My Verification Status
+                                    <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh-my-verif" style="float:right;margin-top:-3px;">Refresh</button>
+                                </div>
+                                <div class="layui-card-body">
+                                    <div id="verif-status-panel">
+                                        <div id="verif-status-loading">Loading verification status...</div>
+                                        <div id="verif-status-none" class="layui-hide">
+                                            <p>You have not submitted a verification request yet. Complete the form below to verify your identity.</p>
+                                        </div>
+                                        <div id="verif-status-display" class="layui-hide">
+                                            <table class="layui-table">
+                                                <tbody id="verif-status-body"></tbody>
+                                            </table>
+                                        </div>
+                                        <div id="verif-rejection-reason" class="auth-message error layui-hide"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="layui-col-md8">
+                            <div class="layui-card">
+                                <div class="layui-card-header">Submit Verification Request</div>
+                                <div class="layui-card-body">
+                                    <form class="layui-form" id="verif-submit-form">
+                                        <div class="layui-form-item">
+                                            <label class="layui-form-label">Government ID</label>
+                                            <div class="layui-input-block">
+                                                <input type="text" name="id_number" placeholder="Government ID number" class="layui-input">
+                                            </div>
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <label class="layui-form-label">Business License</label>
+                                            <div class="layui-input-block">
+                                                <input type="text" name="license_number" placeholder="Business license number (if applicable)" class="layui-input">
+                                            </div>
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <label class="layui-form-label">Scan Upload</label>
+                                            <div class="layui-input-block">
+                                                <input type="file" id="verif-scan-file" accept="image/png,image/jpeg,application/pdf"
+                                                    style="max-width:360px;">
+                                                <small style="color:#999;">Upload a scan of your ID or license (PNG, JPG, PDF)</small>
+                                            </div>
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <div class="layui-input-block">
+                                                <button type="submit" class="layui-btn" lay-submit lay-filter="submitVerification">Submit for Review</button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                    <div id="verif-submit-msg" class="auth-message layui-hide"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Entity List page -->
                 <div id="page-entities" class="page-view">
                     <div class="layui-row layui-col-space15">
@@ -233,7 +303,7 @@
                                         <div class="layui-form-item">
                                             <label class="layui-form-label">Type</label>
                                             <div class="layui-input-block">
-                                                <select name="entity_type" id="ec-type" lay-verify="required">
+                                                <select name="entity_type" id="ec-type" lay-verify="required" lay-filter="ecTypeFilter">
                                                     <option value="farmer">Farmer</option>
                                                     <option value="enterprise">Enterprise</option>
                                                     <option value="collective">Village Collective</option>
@@ -341,8 +411,8 @@
                     <div class="layui-row layui-col-space15"><div class="layui-col-md12"><div class="layui-card">
                         <div class="layui-card-header">Invoices <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh-invoices" style="float:right;margin-top:-3px;">Refresh</button></div>
                         <div class="layui-card-body">
-                            <table class="layui-table"><thead><tr><th>ID</th><th>Contract</th><th>Due</th><th>Amount</th><th>Late Fee</th><th>Status</th></tr></thead>
-                            <tbody id="invoices-tbody"><tr><td colspan="6">Loading...</td></tr></tbody></table>
+                            <table class="layui-table"><thead><tr><th>ID</th><th>Contract</th><th>Due</th><th>Amount</th><th>Late Fee</th><th>Status</th><th>Actions</th></tr></thead>
+                            <tbody id="invoices-tbody"><tr><td colspan="7">Loading...</td></tr></tbody></table>
                         </div>
                     </div></div></div>
                 </div>
@@ -458,6 +528,37 @@
                         </div>
                     </div></div></div>
                 </div>
+                <!-- Delegations page (admin) -->
+                <div id="page-delegations" class="page-view">
+                    <div class="layui-row layui-col-space15">
+                        <div class="layui-col-md12"><div class="layui-card">
+                            <div class="layui-card-header">Delegations
+                                <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh-delegations" style="float:right;margin-top:-3px;">Refresh</button>
+                                <button class="layui-btn layui-btn-sm" id="btn-new-delegation" style="float:right;margin-top:-3px;margin-right:8px;">New Delegation</button>
+                            </div>
+                            <div class="layui-card-body">
+                                <table class="layui-table"><thead><tr>
+                                    <th>ID</th><th>Grantor</th><th>Grantee</th><th>Scope</th><th>Expires</th><th>Status</th><th>Actions</th>
+                                </tr></thead>
+                                <tbody id="delegations-tbody"><tr><td colspan="7">Loading...</td></tr></tbody></table>
+                            </div>
+                        </div></div>
+                        <div class="layui-col-md8 layui-hide" id="delegation-create-panel"><div class="layui-card">
+                            <div class="layui-card-header">Create Delegation</div>
+                            <div class="layui-card-body">
+                                <form class="layui-form" id="delegation-create-form">
+                                    <div class="layui-form-item"><label class="layui-form-label">Grantee ID</label><div class="layui-input-block"><input type="number" name="grantee_id" required class="layui-input" placeholder="User ID of the grantee"></div></div>
+                                    <div class="layui-form-item"><label class="layui-form-label">Scope Level</label><div class="layui-input-block"><select name="scope_level"><option value="village">Village</option><option value="township">Township</option><option value="county">County</option></select></div></div>
+                                    <div class="layui-form-item"><label class="layui-form-label">Scope ID</label><div class="layui-input-block"><input type="number" name="scope_id" required class="layui-input" placeholder="Geographic area ID"></div></div>
+                                    <div class="layui-form-item"><label class="layui-form-label">Expires At</label><div class="layui-input-block"><input type="datetime-local" name="expires_at" required class="layui-input"></div></div>
+                                    <div class="layui-form-item"><div class="layui-input-block"><button type="submit" class="layui-btn" lay-submit lay-filter="createDelegation">Create</button></div></div>
+                                </form>
+                                <div id="delegation-create-msg" class="auth-message layui-hide"></div>
+                            </div>
+                        </div></div>
+                    </div>
+                </div>
+
                 <!-- Admin Jobs page -->
                 <div id="page-admin-jobs" class="page-view">
                     <div class="layui-row layui-col-space15"><div class="layui-col-md12"><div class="layui-card">

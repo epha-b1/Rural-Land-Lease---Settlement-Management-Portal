@@ -26,6 +26,14 @@ class VerificationService
     {
         $idNumber = $data['id_number'] ?? null;
         $licenseNumber = $data['license_number'] ?? null;
+        $scanPath = $data['scan_path'] ?? null;
+
+        // Require at least one piece of identity/qualification evidence
+        if (empty($idNumber) && empty($licenseNumber) && empty($scanPath)) {
+            throw new \think\exception\HttpException(400,
+                'At least one of id_number, license_number, or scan_path is required for verification'
+            );
+        }
 
         $id = Db::table('verification_requests')->insertGetId([
             'user_id'            => $userId,

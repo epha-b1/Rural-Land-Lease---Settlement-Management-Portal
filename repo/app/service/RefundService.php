@@ -9,6 +9,11 @@ class RefundService
 {
     public static function create(array $data, array $user, string $traceId = ''): array
     {
+        // Defense-in-depth: require system_admin regardless of route guard
+        if (($user['role'] ?? '') !== 'system_admin') {
+            throw new \think\exception\HttpException(403, 'Refunds require system_admin privileges');
+        }
+
         $invoiceId = (int)($data['invoice_id'] ?? 0);
         $amountCents = (int)($data['amount_cents'] ?? 0);
         $reason = trim($data['reason'] ?? '');
@@ -25,7 +30,7 @@ class RefundService
             throw new \think\exception\HttpException(403, 'Outside your scope');
         }
 
-        $beforeBalance = (int)$invoice['amount_cents'] - (int)Db::table('refunds')->where('invoice_id', $invoiceId)->sum('amount_cents');
+        $beforeBalance = PaymentService::outstandingBalance($invoiceId);
 
         $refundId = Db::table('refunds')->insertGetId([
             'invoice_id'  => $invoiceId,
@@ -34,8 +39,7 @@ class RefundService
             'issued_by'   => $user['id'],
         ]);
 
-        $totalRefunded = (int)Db::table('refunds')->where('invoice_id', $invoiceId)->sum('amount_cents');
-        $balanceCents = (int)$invoice['amount_cents'] - $totalRefunded;
+        $balanceCents = PaymentService::outstandingBalance($invoiceId);
 
         LogService::info('refund_issued', ['refund_id' => $refundId, 'invoice_id' => $invoiceId], $traceId);
 

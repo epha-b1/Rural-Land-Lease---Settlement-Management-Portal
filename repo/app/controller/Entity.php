@@ -10,6 +10,23 @@ use app\service\AuthContext;
 
 class Entity
 {
+    /** GET /entities/field-definitions?entity_type=farmer */
+    public function fieldDefinitions(Request $request): Response
+    {
+        $entityType = $request->get('entity_type', '');
+        $query = \think\facade\Db::table('extra_field_definitions')->where('active', 1);
+        if (!empty($entityType)) {
+            $query->where('entity_type', $entityType);
+        }
+        $defs = $query->order('id', 'asc')->select()->toArray();
+        // Parse options_json for select fields
+        foreach ($defs as &$d) {
+            $d['options'] = !empty($d['options_json']) ? json_decode($d['options_json'], true) : [];
+            unset($d['options_json']);
+        }
+        return json(['items' => $defs], 200);
+    }
+
     /** GET /entities */
     public function index(Request $request): Response
     {

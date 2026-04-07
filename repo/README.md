@@ -50,18 +50,33 @@ Everything needed is baked into the image and declared inline in `docker-compose
 ## First-Time Walkthrough
 
 1. **Open** `http://localhost:8000/static/register.html`
-2. **Create an account** — pick a role (`farmer` / `enterprise` / `collective` / `system_admin`),
+2. **Create an account** — pick a role (`farmer` / `enterprise` / `collective`),
    pick a scope (`village` 3 / `township` 2 / `county` 1), solve the CAPTCHA math question,
    and use a password with ≥12 chars including upper, lower, digit, and symbol.
+   > **Note:** `system_admin` cannot be self-registered. Admin accounts must be
+   > created by an existing admin via `POST /admin/users` (see "Admin Bootstrap" below).
 3. **Log in** at `/static/login.html`. The CAPTCHA refreshes automatically on each attempt.
-4. **Navigate**: the sidebar reveals profiles, contracts, invoices, payments,
-   messaging, and (for `system_admin`) verifications, risk keywords, audit log, jobs, and config.
+4. **Navigate**: the sidebar reveals verification, profiles, contracts, invoices, payments,
+   messaging, and (for `system_admin`) admin verifications, risk keywords, audit log, jobs, and config.
 5. **Try the features**:
-   - Create an entity profile → duplicate detection flags matching names.
-   - Create a contract → invoice schedule auto-generates for the full term.
-   - Post a payment → pass an `Idempotency-Key`; a replay within 10 minutes returns the original response.
-   - Send a message containing `scam` → the server blocks it (409) per risk policy.
-   - Recall a message within 10 minutes → body becomes `[This message was recalled]`.
+   - **Verification:** Submit your real-name/qualification data (ID number, business license,
+     scan upload) from "My Verification" in the sidebar. Status shows Pending/Approved/Rejected
+     with rejection reason displayed when denied.
+   - **Entity profiles:** Create a profile with configurable extra fields (primary crop,
+     equipment needs, etc.) that load dynamically per entity type.
+   - **Duplicate merge:** When duplicate flags appear, click "Start Guided Merge" for a
+     side-by-side comparison with editable resolution map — choose which values to keep.
+   - **Contracts & invoices:** Create a contract → invoice schedule auto-generates. Overdue
+     invoices accrue late fees automatically (5-day grace, 1.5%/month daily, capped at $250).
+   - **Payments:** Post a payment with `Idempotency-Key` header; concurrent same-key requests
+     are atomically deduplicated — only one payment row is created.
+   - **Messaging:** Send a message containing `scam` → the server blocks it (409) per risk policy.
+     Recall a message within 10 minutes → body becomes `[This message was recalled]`.
+   - **Receipts:** From the Invoices list, click "Receipt" on any invoice to preview a
+     printable receipt with payment/refund details and outstanding balance. Click "Print"
+     to open the browser print dialog.
+   - **Delegations:** As `system_admin`, navigate to Admin → Delegations to create, list,
+     and approve/reject access delegations. Two-person rule enforced.
    - As `system_admin`, visit `/audit-logs` → every action above appears with before/after values.
 
 ---
@@ -103,29 +118,29 @@ m = re.match(r'(-?\d+)\s*([+\-*])\s*(-?\d+)', q)
 a,op,b = int(m[1]), m[2], int(m[3])
 print({'+':a+b,'-':a-b,'*':a*b}[op])")
 
-# 2. Register a system_admin user (county scope)
+# 2. Register a farmer user (village scope)
 curl -s -X POST http://localhost:8000/auth/register \
   -H 'Content-Type: application/json' \
   -d "{
-    \"username\": \"admin\",
-    \"password\": \"AdminP@ss12345\",
-    \"role\": \"system_admin\",
-    \"geo_scope_level\": \"county\",
-    \"geo_scope_id\": 1,
+    \"username\": \"farmer\",
+    \"password\": \"FarmerP@ss12345\",
+    \"role\": \"farmer\",
+    \"geo_scope_level\": \"village\",
+    \"geo_scope_id\": 3,
     \"captcha_id\": \"$CID\",
     \"captcha_answer\": \"$ANS\"
   }"
 ```
 
-### Sample User Matrix
+> **Admin accounts** cannot be self-registered. The first admin must be seeded
+> out-of-band (see "Admin Bootstrap" below). Subsequent admins are created by
+> existing admins via `POST /admin/users`.
 
-Use these through the registration page (solve the CAPTCHA shown on screen)
-or the curl snippet above. All passwords meet the policy (≥12 chars, upper,
-lower, digit, symbol).
+### Sample User Matrix
 
 | Role            | Username  | Password          | Scope Level | Scope ID | Notes                         |
 | --------------- | --------- | ----------------- | ----------- | -------- | ----------------------------- |
-| `system_admin`  | `admin`   | `AdminP@ss12345`  | `county`    | `1`      | Full access, can enroll MFA   |
+| `system_admin`  | `admin`   | `AdminP@ss12345`  | `county`    | `1`      | Must be bootstrapped (see below) |
 | `collective`    | `village` | `CollP@ss12345`   | `village`   | `3`      | Village-collective admin      |
 | `enterprise`    | `biz`     | `BizP@ss12345`    | `township`  | `2`      | Business-scoped user          |
 | `farmer`        | `farmer`  | `FarmerP@ss12345` | `village`   | `3`      | Standard farmer user          |
@@ -229,12 +244,13 @@ count, format, caller IP and User-Agent.
 | Local CAPTCHA (offline math)    | `CaptchaService` + `/auth/captcha` endpoint               |
 | Optional TOTP MFA (admins only) | `MfaService` — enroll + verify + login challenge          |
 | Bearer token sessions           | `TokenService` + `AuthCheck` middleware                   |
-| Role-based access control       | Route-level `authCheck:system_admin`                      |
+| Role-based access control       | Route-level `authCheck:system_admin` + service-layer defense-in-depth |
+| Refund authorization            | `POST /refunds` restricted to `system_admin` (route + service guard)  |
 | Geographic scope isolation      | `ScopeService` applied to every scoped query              |
 | AES-256 encryption at rest      | `EncryptionService` — ID / license / bank / MFA secrets   |
 | Sensitive field masking         | `LogService` auto-redacts password/token/secret keys      |
 | Append-only audit log           | `AuditService` — verification, contract, payment, export  |
-| Payment idempotency             | `PaymentService` — 10-min window, `method+route+actor+key` scope |
+| Payment idempotency (atomic)    | `PaymentService` — 10-min window, atomic reserve-first via UNIQUE constraint |
 | Message recall + risk policy    | `MessagingService` + `RiskService`                        |
 | Attachment validation           | `MessagingService::processAttachment` — MIME + 10 MB + SHA-256 |
 
@@ -243,12 +259,17 @@ count, format, caller IP and User-Agent.
 | Rule                          | Location                                       |
 | ----------------------------- | ---------------------------------------------- |
 | Late fee: 5-day grace         | `LateFeeService::GRACE_DAYS`                   |
-| Late fee: 1.5% monthly daily  | `LateFeeService::DAILY_RATE_BPS` (50 bps/day)  |
+| Late fee: 1.5% monthly daily  | `LateFeeService::DAILY_RATE_BPS` (5 bps/day = 0.05%/day) |
 | Late fee: cap $250/invoice    | `LateFeeService::CAP_CENTS` (25000)            |
+| Late fee: lifecycle integration | `InvoiceService::markOverdue` + `updateLateFees` — persists `late_fee_cents` |
 | Verification state machine    | `VerificationService` — `pending → approved/rejected` |
+| Verification user flow        | `GET /verifications/mine` — user checks own status + rejection reason |
 | Invoice state machine         | `InvoiceService` — `unpaid → paid/overdue`     |
 | Delegation: 30-day max        | `DelegationService::MAX_EXPIRY_DAYS`           |
 | Delegation: two-person rule   | `DelegationService::approve` — grantor ≠ approver |
+| Verification: evidence required | `VerificationService::submit` — at least one of id_number, license_number, or scan_path |
+| Balance formula (canonical)   | `outstanding = invoice_amount + late_fee - totalPaid + totalRefunded` (consistent across payment/refund/receipt) |
+| Contract scope attribution    | `ContractService::create` — scope from target profile, not actor |
 
 ---
 

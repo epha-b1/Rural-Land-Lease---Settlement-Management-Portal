@@ -4,20 +4,25 @@ declare(strict_types=1);
 namespace tests\api;
 
 use PHPUnit\Framework\TestCase;
+use tests\AdminBootstrap;
 
 /**
  * Payment posting + idempotency replay + refund tests.
  */
 class PaymentIdempotencyTest extends TestCase
 {
+    use AdminBootstrap;
+
     private string $baseUrl;
     private string $token;
+    private string $adminToken;
     private int $invoiceId;
 
     protected function setUp(): void
     {
         $this->baseUrl = getenv('API_BASE_URL') ?: 'http://localhost:8000';
         $this->token = $this->setupUserContractInvoice();
+        $this->adminToken = $this->bootstrapAdmin('payidemp', 'county', 1)['token'];
     }
 
     /** Payment happy path */
@@ -79,7 +84,7 @@ class PaymentIdempotencyTest extends TestCase
         $this->assertEquals(400, $status, 'Missing Idempotency-Key should be 400');
     }
 
-    /** Refund happy path */
+    /** Refund happy path (requires system_admin) */
     public function testRefundHappyPath(): void
     {
         $invId = $this->createAnotherInvoice();
@@ -87,7 +92,7 @@ class PaymentIdempotencyTest extends TestCase
 
         $resp = $this->post('/refunds', [
             'invoice_id' => $invId, 'amount_cents' => 10000, 'reason' => 'Overpayment',
-        ], $this->token);
+        ], $this->adminToken);
         $this->assertEquals(201, $resp['status']);
         $this->assertArrayHasKey('refund_id', $resp['data']);
     }
@@ -97,7 +102,7 @@ class PaymentIdempotencyTest extends TestCase
     {
         $resp = $this->post('/refunds', [
             'invoice_id' => $this->invoiceId, 'amount_cents' => 100, 'reason' => '',
-        ], $this->token);
+        ], $this->adminToken);
         $this->assertEquals(400, $resp['status']);
     }
 
