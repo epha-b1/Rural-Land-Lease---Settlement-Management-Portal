@@ -34,7 +34,7 @@ class EndpointCoverageTest extends TestCase
 
         $resp = $this->post('/entities/' . $a['data']['id'] . '/merge', [
             'target_id'      => $b['data']['id'],
-            'resolution_map' => ['keep' => 'target'],
+            'resolution_map' => ['display_name' => 'target', 'address' => 'target'],
         ], $this->farmerToken);
 
         $this->assertEquals(200, $resp['status'], 'Merge: ' . json_encode($resp['data']));

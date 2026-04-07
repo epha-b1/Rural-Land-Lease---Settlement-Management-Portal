@@ -64,7 +64,7 @@ class LogService
         foreach ($data as $key => $value) {
             if (is_array($value)) {
                 $data[$key] = self::maskSensitive($value);
-            } elseif (in_array(strtolower($key), self::$sensitiveKeys, true)) {
+            } elseif (is_string($key) && in_array(strtolower($key), self::$sensitiveKeys, true)) {
                 $data[$key] = '[REDACTED]';
             }
         }

@@ -153,7 +153,8 @@ class FrontendModuleCoverageTest extends TestCase
         $this->assertStringContainsString('farmer', $body);
         $this->assertStringContainsString('enterprise', $body);
         $this->assertStringContainsString('collective', $body);
-        $this->assertStringContainsString('system_admin', $body);
+        // system_admin is intentionally excluded from public registration (Issue I-09)
+        $this->assertStringContainsString('Admin', $body, 'Register page should mention admin accounts');
     }
 
     // ── Remaining page sections (dashboard, health, mfa, verifications) ──
