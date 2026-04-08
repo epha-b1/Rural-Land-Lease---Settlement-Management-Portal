@@ -6,7 +6,8 @@
  *   I-11: voice/image send + per-message Report action
  *   I-12: pre-send risk check via /messages/preflight-risk before POST
  */
-layui.use(['layer'], function () {
+layui.use(['form', 'layer'], function () {
+    var form = layui.form;
     var layer = layui.layer;
     var currentConvId = null;
 
@@ -258,22 +259,96 @@ layui.use(['layer'], function () {
         });
     };
 
-    // === Risk rules admin ===
+    // === Risk rules admin (CRUD) ===
     window.loadRiskRules = function () {
         var tbody = document.getElementById('risk-rules-tbody');
         if (!tbody) return;
         ApiClient.get('/admin/risk-keywords').then(function (r) {
-            if (!r.ok) { tbody.innerHTML = '<tr><td colspan="5">Error</td></tr>'; return; }
+            if (!r.ok) { tbody.innerHTML = '<tr><td colspan="6">Error</td></tr>'; return; }
             var items = r.data.items || [];
             var h = '';
             for (var i = 0; i < items.length; i++) {
                 var rr = items[i];
                 h += '<tr><td>' + rr.id + '</td><td>' + esc(rr.pattern) + '</td><td>' + esc(rr.action) +
-                    '</td><td>' + esc(rr.category) + '</td><td>' + (rr.active ? 'Yes' : 'No') + '</td></tr>';
+                    '</td><td>' + esc(rr.category) + '</td><td>' + (rr.active ? 'Yes' : 'No') +
+                    '</td><td>' +
+                    '<a class="layui-btn layui-btn-xs" onclick="editRiskRule(' + rr.id + ',\'' + esc(rr.pattern).replace(/'/g, "\\'") + '\',\'' + esc(rr.action) + '\',\'' + esc(rr.category) + '\',' + (rr.is_regex ? 1 : 0) + ',' + (rr.active ? 1 : 0) + ')">Edit</a> ' +
+                    '<a class="layui-btn layui-btn-xs layui-btn-danger" onclick="deleteRiskRule(' + rr.id + ')">Disable</a>' +
+                    '</td></tr>';
             }
-            tbody.innerHTML = h || '<tr><td colspan="5">No rules</td></tr>';
+            tbody.innerHTML = h || '<tr><td colspan="6">No rules</td></tr>';
         });
     };
+
+    var btnAddRule = document.getElementById('btn-add-risk-rule');
+    if (btnAddRule) btnAddRule.addEventListener('click', function () {
+        document.getElementById('risk-rule-edit-id').value = '';
+        document.getElementById('risk-rule-form-title').textContent = 'Add Risk Rule';
+        var form = document.getElementById('risk-rule-form');
+        if (form) form.reset();
+        document.getElementById('risk-rule-form-panel').classList.remove('layui-hide');
+    });
+
+    var btnRefreshRules = document.getElementById('btn-refresh-risk-rules');
+    if (btnRefreshRules) btnRefreshRules.addEventListener('click', function () { loadRiskRules(); });
+
+    window.editRiskRule = function (id, pattern, action, category, isRegex, active) {
+        document.getElementById('risk-rule-edit-id').value = id;
+        document.getElementById('risk-rule-form-title').textContent = 'Edit Risk Rule #' + id;
+        var form = document.getElementById('risk-rule-form');
+        if (form) {
+            form.pattern.value = pattern;
+            form.action.value = action;
+            form.category.value = category;
+            form.is_regex.value = isRegex;
+            form.active.value = active;
+        }
+        document.getElementById('risk-rule-form-panel').classList.remove('layui-hide');
+    };
+
+    window.deleteRiskRule = function (id) {
+        layer.confirm('Disable risk rule #' + id + '?', function (idx) {
+            layer.close(idx);
+            ApiClient.del('/admin/risk-keywords/' + id).then(function (r) {
+                if (r.ok) {
+                    layer.msg('Disabled', { icon: 1 });
+                    loadRiskRules();
+                } else {
+                    layer.msg(r.data ? r.data.message : 'Failed', { icon: 2 });
+                }
+            });
+        });
+    };
+
+    form.on('submit(saveRiskRule)', function (data) {
+        var btn = data.elem; btn.disabled = true;
+        var msg = document.getElementById('risk-rule-form-msg');
+        msg.classList.add('layui-hide');
+        var editId = document.getElementById('risk-rule-edit-id').value;
+        var body = {
+            pattern: data.field.pattern,
+            is_regex: parseInt(data.field.is_regex, 10),
+            action: data.field.action,
+            category: data.field.category || '',
+            active: parseInt(data.field.active, 10)
+        };
+        var req = editId
+            ? ApiClient.patch('/admin/risk-keywords/' + editId, body)
+            : ApiClient.post('/admin/risk-keywords', body);
+        req.then(function (r) {
+            btn.disabled = false;
+            if (r.ok) {
+                msg.className = 'auth-message success'; msg.classList.remove('layui-hide');
+                msg.textContent = editId ? 'Rule updated' : 'Rule created (ID: ' + r.data.id + ')';
+                loadRiskRules();
+                document.getElementById('risk-rule-form-panel').classList.add('layui-hide');
+            } else {
+                msg.className = 'auth-message error'; msg.classList.remove('layui-hide');
+                msg.textContent = r.data ? r.data.message : 'Failed';
+            }
+        });
+        return false;
+    });
 
     // === Audit log viewer ===
     window.loadAuditLogs = function () {

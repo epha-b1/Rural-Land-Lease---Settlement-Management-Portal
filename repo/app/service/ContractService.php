@@ -53,8 +53,20 @@ class ContractService
             'created_by'       => $user['id'],
         ]);
 
-        // Generate billing schedule
+        // Generate billing schedule (rent + maintenance per period)
         $invoiceCount = self::generateSchedule($contractId, $start, $end, $rentCents + $maintenanceCents, $frequency);
+
+        // Generate deposit invoice if deposit is specified (due at contract start)
+        if ($depositCents > 0) {
+            $depId = Db::table('invoices')->insertGetId([
+                'contract_id'  => $contractId,
+                'due_date'     => $startDate,
+                'amount_cents' => $depositCents,
+                'status'       => 'unpaid',
+            ]);
+            InvoiceService::createSnapshot($depId);
+            $invoiceCount++;
+        }
 
         LogService::info('contract_created', [
             'contract_id' => $contractId,

@@ -11,21 +11,27 @@ use app\service\AuthContext;
 
 class Verification
 {
-    /** GET /verifications (admin: list verification requests) */
+    /** GET /verifications (admin: list verification requests, scope-filtered) */
     public function index(Request $request): Response
     {
         $status = $request->get('status');
         $page = max((int)$request->get('page', 1), 1);
         $size = min(max((int)$request->get('size', 20), 1), 100);
         $offset = ($page - 1) * $size;
+        $user = AuthContext::user();
 
-        $query = Db::table('verification_requests');
+        // Scope-filter: join to users table to restrict by admin's geo scope
+        $query = Db::table('verification_requests')
+            ->alias('vr')
+            ->join('users u', 'vr.user_id = u.id')
+            ->field('vr.*');
+        $query = \app\service\ScopeService::applyScope($query, $user, 'u.geo_scope_id');
         if ($status) {
-            $query->where('status', $status);
+            $query->where('vr.status', $status);
         }
 
         $total = $query->count();
-        $items = $query->order('submitted_at', 'desc')
+        $items = $query->order('vr.submitted_at', 'desc')
             ->limit($offset, $size)
             ->select()
             ->toArray();
@@ -77,12 +83,18 @@ class Verification
         $data = $request->post();
         $ip = $request->ip();
 
-        // Handle scan file upload if present
+        // Handle scan file upload if present — encrypt at rest (same as message attachments)
         $scanPath = null;
         $file = $request->file('scan_file');
         if ($file) {
-            $savename = \think\facade\Filesystem::disk('public')->putFile('scans', $file);
-            $scanPath = $savename;
+            $binary = file_get_contents($file->getPathname());
+            $encrypted = \app\service\EncryptionService::encrypt($binary);
+            $refName = 'scans/' . bin2hex(random_bytes(16)) . '.enc';
+            $absPath = runtime_path() . $refName;
+            $dir = dirname($absPath);
+            if (!is_dir($dir)) mkdir($dir, 0777, true);
+            file_put_contents($absPath, $encrypted);
+            $scanPath = $refName;
             $data['scan_path'] = $scanPath;
         } elseif (!empty($data['scan_path'])) {
             // Accept scan_path from JSON body (for testing / alternative upload)

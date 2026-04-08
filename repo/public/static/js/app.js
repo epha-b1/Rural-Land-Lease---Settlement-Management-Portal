@@ -25,15 +25,29 @@ layui.use(['element', 'layer', 'util'], function () {
         navRole.textContent = 'Role: ' + currentUser.role;
     }
 
-    // Show admin nav items for system_admin
+    // Role-specific entry experience: show/hide nav sections and set default landing page
+    var roleDefaultPage = 'dashboard';
     if (currentUser && currentUser.role === 'system_admin') {
         var adminNav = document.getElementById('nav-admin');
         if (adminNav) adminNav.classList.remove('layui-hide');
-    }
-    // Show verification nav for non-admin users
-    if (currentUser && currentUser.role !== 'system_admin') {
+        roleDefaultPage = 'verifications';
+    } else if (currentUser && currentUser.role === 'farmer') {
         var verifNav = document.getElementById('nav-verification');
         if (verifNav) verifNav.classList.remove('layui-hide');
+        roleDefaultPage = 'my-verification';
+    } else if (currentUser && (currentUser.role === 'enterprise' || currentUser.role === 'collective')) {
+        var verifNav2 = document.getElementById('nav-verification');
+        if (verifNav2) verifNav2.classList.remove('layui-hide');
+        roleDefaultPage = 'contracts';
+    }
+
+    // Support role-specific entry via URL parameter: /static/index.html?role=farmer
+    var urlParams = new URLSearchParams(window.location.search);
+    var entryRole = urlParams.get('role');
+    if (entryRole && entryRole !== currentUser.role) {
+        // Role mismatch: redirect to correct role entry
+        window.location.href = '/static/index.html?role=' + encodeURIComponent(currentUser.role);
+        return;
     }
 
     // === Logout ===

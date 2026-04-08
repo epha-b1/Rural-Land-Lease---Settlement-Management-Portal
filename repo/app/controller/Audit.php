@@ -9,9 +9,10 @@ use app\service\AuditService;
 
 class Audit
 {
-    /** GET /audit-logs (admin only) */
+    /** GET /audit-logs (admin only, scope-filtered) */
     public function index(Request $request): Response
     {
+        $user = \app\service\AuthContext::user();
         return json(AuditService::query([
             'event_type' => $request->get('event_type'),
             'actor_id'   => $request->get('actor_id'),
@@ -19,6 +20,6 @@ class Audit
             'to'         => $request->get('to'),
             'page'       => $request->get('page', 1),
             'size'       => $request->get('size', 20),
-        ]), 200);
+        ], $user), 200);
     }
 }

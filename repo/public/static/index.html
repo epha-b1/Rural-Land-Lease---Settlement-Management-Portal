@@ -509,13 +509,33 @@
 
                 <!-- Risk keywords page (admin) -->
                 <div id="page-risk-rules" class="page-view">
-                    <div class="layui-row layui-col-space15"><div class="layui-col-md12"><div class="layui-card">
-                        <div class="layui-card-header">Risk Keyword Library</div>
-                        <div class="layui-card-body">
-                            <table class="layui-table"><thead><tr><th>ID</th><th>Pattern</th><th>Action</th><th>Category</th><th>Active</th></tr></thead>
-                            <tbody id="risk-rules-tbody"><tr><td colspan="5">Loading...</td></tr></tbody></table>
-                        </div>
-                    </div></div></div>
+                    <div class="layui-row layui-col-space15">
+                        <div class="layui-col-md12"><div class="layui-card">
+                            <div class="layui-card-header">Risk Keyword Library
+                                <button class="layui-btn layui-btn-sm" id="btn-add-risk-rule" style="float:right;margin-top:-3px;">Add Rule</button>
+                                <button class="layui-btn layui-btn-sm layui-btn-normal" id="btn-refresh-risk-rules" style="float:right;margin-top:-3px;margin-right:8px;">Refresh</button>
+                            </div>
+                            <div class="layui-card-body">
+                                <table class="layui-table"><thead><tr><th>ID</th><th>Pattern</th><th>Action</th><th>Category</th><th>Active</th><th>Actions</th></tr></thead>
+                                <tbody id="risk-rules-tbody"><tr><td colspan="6">Loading...</td></tr></tbody></table>
+                            </div>
+                        </div></div>
+                        <div class="layui-col-md8 layui-hide" id="risk-rule-form-panel"><div class="layui-card">
+                            <div class="layui-card-header" id="risk-rule-form-title">Add Risk Rule</div>
+                            <div class="layui-card-body">
+                                <form class="layui-form" id="risk-rule-form">
+                                    <input type="hidden" id="risk-rule-edit-id" value="">
+                                    <div class="layui-form-item"><label class="layui-form-label">Pattern</label><div class="layui-input-block"><input type="text" name="pattern" required placeholder="Keyword or regex pattern" class="layui-input"></div></div>
+                                    <div class="layui-form-item"><label class="layui-form-label">Is Regex</label><div class="layui-input-block"><select name="is_regex"><option value="0">No</option><option value="1">Yes</option></select></div></div>
+                                    <div class="layui-form-item"><label class="layui-form-label">Action</label><div class="layui-input-block"><select name="action"><option value="warn">Warn</option><option value="block">Block</option><option value="flag">Flag</option></select></div></div>
+                                    <div class="layui-form-item"><label class="layui-form-label">Category</label><div class="layui-input-block"><input type="text" name="category" placeholder="e.g. fraud, spam" class="layui-input"></div></div>
+                                    <div class="layui-form-item"><label class="layui-form-label">Active</label><div class="layui-input-block"><select name="active"><option value="1">Yes</option><option value="0">No</option></select></div></div>
+                                    <div class="layui-form-item"><div class="layui-input-block"><button type="submit" class="layui-btn" lay-submit lay-filter="saveRiskRule">Save</button></div></div>
+                                </form>
+                                <div id="risk-rule-form-msg" class="auth-message layui-hide"></div>
+                            </div>
+                        </div></div>
+                    </div>
                 </div>
 
                 <!-- Audit Log page (admin) -->

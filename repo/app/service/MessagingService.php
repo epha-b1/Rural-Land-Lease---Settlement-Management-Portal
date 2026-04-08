@@ -126,6 +126,20 @@ class MessagingService
             throw new \think\exception\HttpException(400, 'attachment data_base64 is not valid base64');
         }
 
+        // Server-side content inspection: reject dangerous executable content
+        // regardless of declared MIME. Uses finfo magic-byte detection.
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $detectedMime = $finfo->buffer($binary);
+        $dangerousMimes = [
+            'application/x-executable', 'application/x-dosexec', 'application/x-sharedlib',
+            'application/x-mach-binary', 'application/x-elf', 'text/x-php', 'text/x-shellscript',
+        ];
+        if ($detectedMime !== false && in_array($detectedMime, $dangerousMimes, true)) {
+            throw new \think\exception\HttpException(400,
+                "attachment content detected as dangerous type: {$detectedMime}"
+            );
+        }
+
         $sizeBytes = strlen($binary);
         if ($sizeBytes > self::MAX_ATTACHMENT_BYTES) {
             throw new \think\exception\HttpException(413,

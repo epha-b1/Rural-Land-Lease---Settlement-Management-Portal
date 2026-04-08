@@ -121,4 +121,42 @@ class Message
         Db::table('risk_rules')->where('id', $id)->update(['active' => 0]);
         return json(['id' => $id, 'disabled' => true], 200);
     }
+
+    /** GET /attachments/:id — serve decrypted attachment bytes with scope check */
+    public function attachment(Request $request): Response
+    {
+        $id = (int)$request->param('id');
+        $user = AuthContext::user();
+        $att = Db::table('attachments')->where('id', $id)->find();
+        if (!$att) throw new \think\exception\HttpException(404, 'Attachment not found');
+
+        // Schema: messages.attachment_id → attachments.id (message owns the FK)
+        $msg = Db::table('messages')->where('attachment_id', $id)->find();
+        if (!$msg) throw new \think\exception\HttpException(404, 'Owning message not found');
+
+        // Recalled messages must not expose attachment content
+        if (!empty($msg['recalled_at'])) {
+            throw new \think\exception\HttpException(403, 'Attachment belongs to a recalled message');
+        }
+
+        // Scope check via conversation participation
+        $conv = Db::table('conversations')->where('id', $msg['conversation_id'])->find();
+        if (!$conv) throw new \think\exception\HttpException(404, 'Conversation not found');
+        if ((int)$conv['created_by'] !== (int)$user['id']) {
+            $participant = Db::table('messages')
+                ->where('conversation_id', $conv['id'])
+                ->where('sender_id', $user['id'])
+                ->find();
+            if (!$participant && $user['role'] !== 'system_admin') {
+                throw new \think\exception\HttpException(403, 'Not a participant in this conversation');
+            }
+        }
+
+        $data = MessagingService::readAttachmentPlaintext($id);
+        return response($data['bytes'], 200, [
+            'Content-Type' => $data['mime_type'],
+            'Content-Disposition' => 'inline; filename="' . $data['file_name'] . '"',
+            'Content-Length' => (string)$data['size_bytes'],
+        ]);
+    }
 }

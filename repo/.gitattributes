@@ -1,0 +1,16 @@
+# Force LF line endings for shell scripts on all platforms.
+# Prevents Windows Git (core.autocrlf=true) from injecting \r
+# which breaks #!/bin/bash shebang parsing in Docker containers.
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+
+# Keep PHP/JS/CSS/HTML/SQL/JSON as LF too (consistent across platforms)
+*.php text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.sql text eol=lf
+*.json text eol=lf
+*.xml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf

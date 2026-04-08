@@ -33,22 +33,20 @@ class DuplicateService
             $query->where('id', '<>', $excludeId);
         }
 
-        // Must match at least one of id_last4 or license_last4
-        $hasIdentifier = false;
-        if (!empty($idLast4)) {
-            $query->where('id_last4', $idLast4);
-            $hasIdentifier = true;
-        }
-        if (!empty($licenseLast4) && !$hasIdentifier) {
-            $query->where('license_last4', $licenseLast4);
-            $hasIdentifier = true;
-        }
-
-        // If no identifier provided, match on name + address only
-        // (still flag for review)
-        if (!$hasIdentifier && (empty($idLast4) && empty($licenseLast4))) {
+        // Match on either id_last4 OR license_last4 (union strategy)
+        $hasIdentifier = !empty($idLast4) || !empty($licenseLast4);
+        if (!$hasIdentifier) {
             return [];
         }
+
+        $query->where(function ($q) use ($idLast4, $licenseLast4) {
+            if (!empty($idLast4)) {
+                $q->whereOr('id_last4', $idLast4);
+            }
+            if (!empty($licenseLast4)) {
+                $q->whereOr('license_last4', $licenseLast4);
+            }
+        });
 
         return $query->column('id');
     }

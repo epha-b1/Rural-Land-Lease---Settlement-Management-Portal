@@ -1,3 +1,13 @@
+# ============================================================================
+# DEVELOPMENT ONLY — NOT FOR PRODUCTION
+# This file ships insecure defaults (inline encryption key, plain DB password,
+# dev JWT secret). For production, you MUST:
+#   1. Remove ENCRYPTION_KEY and set ENCRYPTION_KEY_FILE to a secret mount
+#   2. Rotate JWT_SECRET to a cryptographically random ≥32-char value
+#   3. Set strong DB passwords via Docker secrets or .env file
+#   4. Set APP_ENV=production (enables encryption key guard)
+# See README.md "Secrets & Encryption Key Management" for details.
+# ============================================================================
 services:
   api:
     build: .
@@ -44,6 +54,7 @@ services:
     restart: unless-stopped
     volumes:
       - app_runtime:/app/runtime
+      - app_storage:/app/storage
 
   db:
     image: mysql:8.0
@@ -64,3 +75,4 @@ services:
 volumes:
   dbdata:
   app_runtime:
+  app_storage:

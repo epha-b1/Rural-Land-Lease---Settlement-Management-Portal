@@ -106,16 +106,20 @@ class PaymentService
                 'posted_by'     => $user['id'],
             ]);
 
-            // 6. Transition invoice to paid
+            // 6. Compute outstanding balance AFTER recording payment
             $beforeInvoice = ['status' => $invoice['status'], 'amount_cents' => $invoice['amount_cents']];
-            InvoiceService::transition($invoiceId, 'paid', $traceId);
-
-            // 7. Compute final balance (canonical formula across payment/refund paths)
             $balanceCents = self::outstandingBalance($invoiceId);
+
+            // 7. Only transition to paid when fully settled (outstanding == 0)
+            $finalStatus = $invoice['status'];
+            if ($balanceCents <= 0) {
+                InvoiceService::transition($invoiceId, 'paid', $traceId);
+                $finalStatus = 'paid';
+            }
 
             $result = [
                 'payment_id'     => $paymentId,
-                'invoice_status' => 'paid',
+                'invoice_status' => $finalStatus,
                 'balance_cents'  => max($balanceCents, 0),
             ];
 
@@ -141,7 +145,7 @@ class PaymentService
                 'invoice',
                 $invoiceId,
                 $beforeInvoice,
-                ['status' => 'paid', 'payment_id' => $paymentId, 'amount_cents' => $amountCents, 'method' => $method, 'balance_cents' => max($balanceCents, 0)],
+                ['status' => $finalStatus, 'payment_id' => $paymentId, 'amount_cents' => $amountCents, 'method' => $method, 'balance_cents' => max($balanceCents, 0)],
                 RequestContext::ip(),
                 RequestContext::device(),
                 $traceId

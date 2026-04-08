@@ -65,6 +65,7 @@ Route::post('messages/preflight-risk', 'Message/preflightRisk')->middleware('aut
 Route::post('messages', 'Message/send')->middleware('authCheck')->completeMatch(true);
 Route::patch('messages/:id/recall', 'Message/recall')->middleware('authCheck')->pattern(['id' => '\d+']);
 Route::post('messages/:id/report', 'Message/report')->middleware('authCheck')->pattern(['id' => '\d+']);
+Route::get('attachments/:id', 'Message/attachment')->middleware('authCheck')->pattern(['id' => '\d+']);
 
 // Admin risk keyword management
 Route::get('admin/risk-keywords', 'Message/riskKeywords')->middleware('authCheck', 'system_admin');

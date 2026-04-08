@@ -86,6 +86,21 @@ class AuthService
             throw new \think\exception\HttpException(400, 'Invalid geo_scope_id');
         }
 
+        // Enforce scope-level matches geo_area record level
+        if (isset($geoArea['level']) && $geoArea['level'] !== $geoScopeLevel) {
+            throw new \think\exception\HttpException(400,
+                'geo_scope_level must match the level of the referenced area'
+            );
+        }
+
+        // Public registration restricted to village scope only;
+        // township/county scope requires admin provisioning via /admin/users
+        if ($public && $geoScopeLevel !== 'village') {
+            throw new \think\exception\HttpException(403,
+                'Public registration is limited to village scope. Contact an administrator for broader access.'
+            );
+        }
+
         // Check username uniqueness
         $existing = Db::table('users')->where('username', $username)->find();
         if ($existing) {

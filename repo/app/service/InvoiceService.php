@@ -14,7 +14,8 @@ use think\facade\Db;
 class InvoiceService
 {
     private const VALID_TRANSITIONS = [
-        'unpaid' => ['paid', 'overdue'],
+        'unpaid'  => ['paid', 'overdue'],
+        'overdue' => ['paid'],
     ];
 
     public static function list(array $user, array $filters = []): array

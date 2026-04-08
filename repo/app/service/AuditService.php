@@ -41,9 +41,17 @@ class AuditService
     /**
      * Query audit logs (read-only).
      */
-    public static function query(array $filters = []): array
+    public static function query(array $filters = [], ?array $user = null): array
     {
         $query = Db::table('audit_logs');
+
+        // Scope-filter: restrict audit visibility by admin's geographic scope
+        if ($user) {
+            $query->alias('al')
+                ->join('users u', 'al.actor_id = u.id', 'LEFT')
+                ->field('al.*');
+            $query = ScopeService::applyScope($query, $user, 'u.geo_scope_id');
+        }
 
         if (!empty($filters['event_type'])) $query->where('event_type', $filters['event_type']);
         if (!empty($filters['actor_id'])) $query->where('actor_id', (int)$filters['actor_id']);

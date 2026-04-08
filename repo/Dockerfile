@@ -33,23 +33,22 @@ COPY . .
 # Install all dependencies (including dev for testing)
 RUN composer install --no-interaction
 
-# Download Layui (unzip may warn about Chinese filenames, hence || true)
-RUN set -e && mkdir -p public/static/layui \
-    && curl -fSL -o /tmp/layui.zip "https://github.com/layui/layui/releases/download/v2.9.21/layui-v2.9.21.zip" \
-    && (unzip -o /tmp/layui.zip -d /tmp/layui_tmp || true) \
-    && cp -r /tmp/layui_tmp/*/layui/. public/static/layui/ \
-    && ls public/static/layui/layui.js \
-    && rm -rf /tmp/layui.zip /tmp/layui_tmp
+# Layui is vendored in public/static/layui/ (no internet required at build time).
+# Verify the asset is present.
+RUN ls public/static/layui/layui.js
 
 # Create runtime directories
 RUN mkdir -p runtime/cache runtime/log runtime/session storage/uploads storage/exports storage/keys \
     && chmod -R 777 runtime storage
 
-# Make entrypoint executable
-RUN chmod +x docker-entrypoint.sh
+# Strip Windows CRLF line endings from all shell scripts (if any) and make executable.
+# .gitattributes enforces LF at checkout, but this is a belt-and-suspenders guard
+# for machines that bypass gitattributes or use tarball exports.
+RUN find . -name '*.sh' -exec sed -i 's/\r$//' {} + \
+    && chmod +x docker-entrypoint.sh run_tests.sh
 
 # Expose port
 EXPOSE 8000
 
-# Use entrypoint that runs migrations then starts server
-ENTRYPOINT ["./docker-entrypoint.sh"]
+# Use absolute entrypoint that runs migrations then starts server
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

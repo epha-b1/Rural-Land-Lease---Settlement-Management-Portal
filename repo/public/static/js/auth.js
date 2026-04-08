@@ -95,10 +95,11 @@ layui.use(['form', 'layer'], function () {
                     loadCaptcha();
                     return;
                 }
-                // Store token and redirect
+                // Store token and redirect to role-specific entry
                 localStorage.setItem('access_token', resp.data.access_token);
                 localStorage.setItem('user', JSON.stringify(resp.data.user));
-                window.location.href = '/static/index.html';
+                var userRole = resp.data.user ? resp.data.user.role : '';
+                window.location.href = '/static/index.html?role=' + encodeURIComponent(userRole);
             } else {
                 showMessage(resp.data ? resp.data.message : 'Login failed', 'error');
                 // CAPTCHA is single-use — always refresh after a failed attempt

@@ -91,6 +91,23 @@ class FrontendModuleCoverageTest extends TestCase
         $this->assertStringContainsString('risk-rules-tbody', $html);
     }
 
+    public function testIndexHasRiskRuleCrudUi(): void
+    {
+        $html = $this->fetch('/static/index.html');
+        $this->assertStringContainsString('btn-add-risk-rule', $html, 'Must have Add Rule button');
+        $this->assertStringContainsString('risk-rule-form', $html, 'Must have risk rule form');
+        $this->assertStringContainsString('risk-rule-edit-id', $html, 'Must have hidden edit ID field');
+        $this->assertStringContainsString('saveRiskRule', $html, 'Must have save risk rule filter');
+    }
+
+    public function testMessagingJsHasRiskRuleCrud(): void
+    {
+        $js = $this->fetch('/static/js/messaging.js');
+        $this->assertStringContainsString('editRiskRule', $js, 'Must define editRiskRule function');
+        $this->assertStringContainsString('deleteRiskRule', $js, 'Must define deleteRiskRule function');
+        $this->assertStringContainsString('saveRiskRule', $js, 'Must define saveRiskRule form handler');
+    }
+
     public function testIndexHasAuditLogPage(): void
     {
         $html = $this->fetch('/static/index.html');

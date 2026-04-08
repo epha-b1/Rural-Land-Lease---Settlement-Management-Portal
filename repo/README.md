@@ -51,10 +51,11 @@ Everything needed is baked into the image and declared inline in `docker-compose
 
 1. **Open** `http://localhost:8000/static/register.html`
 2. **Create an account** — pick a role (`farmer` / `enterprise` / `collective`),
-   pick a scope (`village` 3 / `township` 2 / `county` 1), solve the CAPTCHA math question,
-   and use a password with ≥12 chars including upper, lower, digit, and symbol.
-   > **Note:** `system_admin` cannot be self-registered. Admin accounts must be
-   > created by an existing admin via `POST /admin/users` (see "Admin Bootstrap" below).
+   scope is `village` (public registration is restricted to village scope; township/county
+   access requires admin provisioning via `POST /admin/users`), solve the CAPTCHA math
+   question, and use a password with ≥12 chars including upper, lower, digit, and symbol.
+   > **Note:** `system_admin` cannot be self-registered. Admin and township/county-scoped
+   > accounts must be created by an existing admin via `POST /admin/users` (see "Admin Bootstrap" below).
 3. **Log in** at `/static/login.html`. The CAPTCHA refreshes automatically on each attempt.
 4. **Navigate**: the sidebar reveals verification, profiles, contracts, invoices, payments,
    messaging, and (for `system_admin`) admin verifications, risk keywords, audit log, jobs, and config.
@@ -246,8 +247,12 @@ count, format, caller IP and User-Agent.
 | Bearer token sessions           | `TokenService` + `AuthCheck` middleware                   |
 | Role-based access control       | Route-level `authCheck:system_admin` + service-layer defense-in-depth |
 | Refund authorization            | `POST /refunds` restricted to `system_admin` (route + service guard)  |
-| Geographic scope isolation      | `ScopeService` applied to every scoped query              |
-| AES-256 encryption at rest      | `EncryptionService` — ID / license / bank / MFA secrets   |
+| Geographic scope isolation      | `ScopeService` applied to every scoped query (incl. admin list endpoints) |
+| Public scope restriction        | Public registration limited to village scope; township/county via admin only |
+| Scope-level validation          | `geo_scope_level` must match `geo_areas.level` for the referenced area |
+| Role-specific entry UX          | Login redirects to role-appropriate landing page (`?role=` parameter) |
+| AES-256 encryption at rest      | `EncryptionService` — ID / license / bank / MFA / scan files |
+| Attachment content inspection   | Server-side `finfo` magic-byte verification against declared MIME |
 | Sensitive field masking         | `LogService` auto-redacts password/token/secret keys      |
 | Append-only audit log           | `AuditService` — verification, contract, payment, export  |
 | Payment idempotency (atomic)    | `PaymentService` — 10-min window, atomic reserve-first via UNIQUE constraint |
@@ -392,7 +397,8 @@ repo/
 │       ├── login.html   # Login page (+ CAPTCHA)
 │       ├── register.html
 │       ├── css/
-│       └── js/          # api-client, app, auth, entities, finance, messaging, admin
+│       ├── js/          # api-client, app, auth, entities, finance, messaging, admin
+│       └── layui/       # Layui 2.9 assets (vendored, no internet required at build)
 ├── route/app.php        # Route definitions grouped by slice
 ├── storage/
 │   ├── uploads/         # Attachment storage (10 MB cap, SHA-256 checksum, AES-256 at rest)
@@ -442,6 +448,8 @@ All 9 migrations will re-run automatically on next startup.
 ## License & Scope
 
 This project is a reference implementation for the Rural Land Lease & Settlement
-Management Portal. It is designed to run fully offline on a county intranet with
-no external API dependencies. All payment, verification, and messaging flows
+Management Portal. At runtime it operates fully offline on a county intranet with
+no external API dependencies — all payment, verification, and messaging flows
 persist to a local MySQL database, and every sensitive field is encrypted at rest.
+Frontend assets (Layui) are vendored in-repo so Docker builds require only the
+base PHP image and Composer registry (no GitHub/CDN fetch for UI assets).

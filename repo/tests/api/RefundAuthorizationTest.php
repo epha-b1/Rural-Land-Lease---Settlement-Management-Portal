@@ -60,7 +60,7 @@ class RefundAuthorizationTest extends TestCase
     /** Enterprise user refund attempt => 403 */
     public function testEnterpriseRefundReturns403(): void
     {
-        $enterpriseToken = $this->makeUser('enterprise', 'township', 2);
+        $enterpriseToken = $this->makeUser('enterprise', 'village', 3);
         $invId = $this->seedPaidInvoice($enterpriseToken);
 
         $resp = $this->post('/refunds', [

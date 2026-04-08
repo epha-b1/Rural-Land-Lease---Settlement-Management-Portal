@@ -36,6 +36,7 @@ class BalanceCorrectnessTest extends TestCase
         $payResp = $this->postPayment($invId, 50000);
         $this->assertEquals(201, $payResp['status'], 'Payment: ' . json_encode($payResp['data']));
         $this->assertEquals(0, $payResp['data']['balance_cents'], 'Balance after full payment should be 0');
+        $this->assertEquals('paid', $payResp['data']['invoice_status'], 'Full payment must set status to paid');
 
         // Issue refund of 10000
         $refResp = $this->post('/refunds', [
@@ -49,17 +50,47 @@ class BalanceCorrectnessTest extends TestCase
     }
 
     /**
-     * Scenario: invoice=80000, payment=50000
+     * Scenario: invoice=80000, payment=50000 (partial)
      * Expected balance: 80000 + 0 - 50000 + 0 = 30000
+     * Then receipt should confirm same balance.
      */
     public function testBalanceAfterPartialPayment(): void
     {
         $invId = $this->seedInvoice(80000);
 
-        $payResp = $this->postPayment($invId, 80000);
+        $payResp = $this->postPayment($invId, 50000);
         $this->assertEquals(201, $payResp['status']);
-        // Full payment -> balance 0
-        $this->assertEquals(0, $payResp['data']['balance_cents']);
+        $this->assertEquals(30000, $payResp['data']['balance_cents'],
+            'Balance after 50000 partial payment on 80000 invoice should be 30000');
+        $this->assertNotEquals('paid', $payResp['data']['invoice_status'],
+            'Partial payment response must NOT report status as paid');
+        $this->assertContains($payResp['data']['invoice_status'], ['unpaid', 'overdue'],
+            'Partial payment response must keep invoice as unpaid or overdue');
+
+        // Verify PERSISTED invoice state via GET /invoices/:id
+        $inv = $this->get('/invoices/' . $invId, $this->adminToken);
+        $this->assertEquals(200, $inv['status']);
+        $this->assertNotEquals('paid', $inv['data']['invoice']['status'],
+            'Persisted invoice status must NOT be paid after partial payment');
+
+        // Receipt should confirm the same outstanding balance
+        $receipt = $this->get('/invoices/' . $invId . '/receipt', $this->adminToken);
+        $this->assertEquals(200, $receipt['status']);
+        $this->assertEquals(30000, $receipt['data']['balance_cents'],
+            'Receipt balance should match: 80000 - 50000 = 30000');
+
+        // Now pay the remainder — should transition to paid
+        $payResp2 = $this->postPayment($invId, 30000);
+        $this->assertEquals(201, $payResp2['status']);
+        $this->assertEquals(0, $payResp2['data']['balance_cents']);
+        $this->assertEquals('paid', $payResp2['data']['invoice_status'],
+            'Full settlement response must report status as paid');
+
+        // Verify PERSISTED invoice state is now paid
+        $inv2 = $this->get('/invoices/' . $invId, $this->adminToken);
+        $this->assertEquals(200, $inv2['status']);
+        $this->assertEquals('paid', $inv2['data']['invoice']['status'],
+            'Persisted invoice status must be paid after full settlement');
     }
 
     /**

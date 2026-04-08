@@ -10,14 +10,15 @@ use app\service\AuthContext;
 
 class Delegation
 {
-    /** GET /delegations (admin: list delegations) */
+    /** GET /delegations (admin: list delegations, scope-filtered) */
     public function index(Request $request): Response
     {
+        $user = AuthContext::user();
         return json(DelegationService::list([
             'status' => $request->get('status'),
             'page'   => $request->get('page', 1),
             'size'   => $request->get('size', 20),
-        ]), 200);
+        ], $user), 200);
     }
 
     /** POST /delegations (county admin creates a pending delegation) */

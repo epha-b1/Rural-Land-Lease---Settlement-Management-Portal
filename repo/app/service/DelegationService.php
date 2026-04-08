@@ -145,10 +145,18 @@ class DelegationService
         return ['delegation_id' => $delegationId, 'status' => $newStatus];
     }
 
-    public static function list(array $filters = []): array
+    public static function list(array $filters = [], ?array $user = null): array
     {
         $query = Db::table('access_delegations');
         if (!empty($filters['status'])) $query->where('status', $filters['status']);
+
+        // Scope-filter: restrict by the admin's geographic scope via the grantee
+        if ($user) {
+            $query->alias('d')
+                ->join('users gu', 'd.grantee_id = gu.id')
+                ->field('d.*');
+            $query = ScopeService::applyScope($query, $user, 'gu.geo_scope_id');
+        }
 
         $page = max((int)($filters['page'] ?? 1), 1);
         $size = min(max((int)($filters['size'] ?? 20), 1), 100);
