@@ -23,14 +23,25 @@ export const JS_DIR = resolve(__dirname, '../../public/static/js');
  * it against `globalThis`. Returns the source string (useful for static
  * assertions) and also triggers any global side effects.
  *
+ * `var` declarations at the top level of a `new Function` body stay local
+ * to that function, so we explicitly lift known top-level names onto
+ * globalThis after execution (matching browser `<script>` semantics
+ * where top-level `var X = ...` becomes a window property).
+ *
  * @param {string} fileName e.g. 'api-client.js'
  * @returns {string} the raw source
  */
 export function loadModuleGlobal(fileName) {
     const src = readFileSync(resolve(JS_DIR, fileName), 'utf8');
-    // Execute with `this` === globalThis so `var X = ...` at the top
-    // level ends up on the test's globalThis (matches browser semantics).
-    const fn = new Function(src);
+    // Known top-level globals declared via `var` across the portal modules.
+    // If any show up, lift them onto globalThis.
+    const lifts = [
+        'ApiClient',
+    ];
+    const liftCode = lifts
+        .map((n) => `if (typeof ${n} !== "undefined") globalThis.${n} = ${n};`)
+        .join('\n');
+    const fn = new Function(src + '\n' + liftCode);
     fn.call(globalThis);
     return src;
 }

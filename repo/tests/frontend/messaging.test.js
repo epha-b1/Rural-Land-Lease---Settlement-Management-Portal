@@ -58,20 +58,20 @@ describe('messaging.js', () => {
     });
 
     it('exposes loadMessaging, loadRiskRules, loadAuditLogs, editRiskRule, deleteRiskRule', () => {
-        expect(typeof globalThis.loadMessaging).toBe('function');
-        expect(typeof globalThis.loadRiskRules).toBe('function');
-        expect(typeof globalThis.loadAuditLogs).toBe('function');
-        expect(typeof globalThis.editRiskRule).toBe('function');
-        expect(typeof globalThis.deleteRiskRule).toBe('function');
+        expect(typeof window.loadMessaging).toBe('function');
+        expect(typeof window.loadRiskRules).toBe('function');
+        expect(typeof window.loadAuditLogs).toBe('function');
+        expect(typeof window.editRiskRule).toBe('function');
+        expect(typeof window.deleteRiskRule).toBe('function');
     });
 
     it('loadRiskRules fetches /admin/risk-keywords', () => {
-        globalThis.loadRiskRules();
+        window.loadRiskRules();
         expect(globalThis.ApiClient.get).toHaveBeenCalledWith('/admin/risk-keywords');
     });
 
     it('loadAuditLogs fetches /audit-logs', () => {
-        globalThis.loadAuditLogs();
+        window.loadAuditLogs();
         expect(globalThis.ApiClient.get).toHaveBeenCalledWith('/audit-logs');
     });
 

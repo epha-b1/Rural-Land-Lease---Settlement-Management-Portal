@@ -43,19 +43,19 @@ describe('admin.js', () => {
     });
 
     it('exposes loadAdminJobs, loadAdminConfig, loadDelegations, approveDelegation', () => {
-        expect(typeof globalThis.loadAdminJobs).toBe('function');
-        expect(typeof globalThis.loadAdminConfig).toBe('function');
-        expect(typeof globalThis.loadDelegations).toBe('function');
-        expect(typeof globalThis.approveDelegation).toBe('function');
+        expect(typeof window.loadAdminJobs).toBe('function');
+        expect(typeof window.loadAdminConfig).toBe('function');
+        expect(typeof window.loadDelegations).toBe('function');
+        expect(typeof window.approveDelegation).toBe('function');
     });
 
     it('loadAdminJobs calls GET /admin/jobs', () => {
-        globalThis.loadAdminJobs();
+        window.loadAdminJobs();
         expect(globalThis.ApiClient.get).toHaveBeenCalledWith('/admin/jobs');
     });
 
     it('loadDelegations calls GET /delegations', () => {
-        globalThis.loadDelegations();
+        window.loadDelegations();
         expect(globalThis.ApiClient.get).toHaveBeenCalledWith('/delegations');
     });
 

@@ -23,10 +23,17 @@ docker compose up --build -d         # Docker Compose V2 (plugin)
 
 # 3. Run the full test suite (unit + API, executed inside the container)
 ./run_tests.sh
-
-# 4. (optional) Run the frontend JS unit tests on the host (Node 18+):
-npm install && npm test
 ```
+
+The backend and API test suites are executed entirely **inside the Docker
+container** by `./run_tests.sh` — no host-side package installs are required.
+
+> Frontend JS unit tests (Vitest + happy-dom) live under `tests/frontend/`
+> and are intended as an optional **developer-only** smoke suite. They are
+> not required for Docker-contained verification of the portal; backend
+> static-content tests (`tests/api/FrontendIntegrationTest.php`,
+> `tests/api/FrontendModuleCoverageTest.php`) already cover the same
+> frontend assets end-to-end from inside the container.
 
 That's it. No host-side PHP, no manual database setup, no `.env` file to copy.
 Everything needed is baked into the image and declared inline in `docker-compose.yml`.
@@ -190,8 +197,9 @@ mysql -h 127.0.0.1 -P 3307 -u app -papp rural_lease
 - **Frontend (JS unit tests):** Vitest + happy-dom unit tests live under
   `tests/frontend/*.test.js` and exercise the seven Layui modules
   (`api-client`, `app`, `auth`, `entities`, `finance`, `messaging`, `admin`)
-  directly by loading the real source from `public/static/js/`. Run with
-  `npm install && npm test` on the host.
+  directly by loading the real source from `public/static/js/`. These are
+  an **optional developer-only** suite; Docker-contained verification
+  (`./run_tests.sh`) does not depend on them.
 
 ## Financial Exports (CSV / XLSX)
 

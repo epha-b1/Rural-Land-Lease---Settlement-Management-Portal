@@ -51,19 +51,19 @@ describe('finance.js', () => {
     });
 
     it('exposes loadContracts, loadInvoices, openReceipt, printReceipt on window', () => {
-        expect(typeof globalThis.loadContracts).toBe('function');
-        expect(typeof globalThis.loadInvoices).toBe('function');
-        expect(typeof globalThis.openReceipt).toBe('function');
-        expect(typeof globalThis.printReceipt).toBe('function');
+        expect(typeof window.loadContracts).toBe('function');
+        expect(typeof window.loadInvoices).toBe('function');
+        expect(typeof window.openReceipt).toBe('function');
+        expect(typeof window.printReceipt).toBe('function');
     });
 
     it('loadContracts fetches /contracts', () => {
-        globalThis.loadContracts();
+        window.loadContracts();
         expect(globalThis.ApiClient.get).toHaveBeenCalledWith('/contracts');
     });
 
     it('openReceipt fetches /invoices/:id/receipt', () => {
-        globalThis.openReceipt(42);
+        window.openReceipt(42);
         expect(globalThis.ApiClient.get).toHaveBeenCalledWith('/invoices/42/receipt');
     });
 

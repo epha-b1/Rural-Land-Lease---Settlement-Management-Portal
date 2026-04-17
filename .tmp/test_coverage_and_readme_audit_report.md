@@ -1,76 +1,24 @@
 # Test Coverage Audit
 
-## Scope, Method, and Project Type
-- Audit mode: static inspection only (no test execution, no runtime validation).
-- Repository inspected: `repo/`.
-- README location check: `repo/README.md` exists.
-- Project type declaration at README top: **missing** (required keyword not present in opening section).
-- Inferred project type (light inspection): **fullstack** (ThinkPHP API + static Layui web UI), evidenced in `repo/README.md:5` and `repo/README.md:33`.
+## Scope and Project Type
+- Method: static inspection only (no execution).
+- README exists at `repo/README.md`.
+- Project type declaration at top: `Project type: fullstack` present (`repo/README.md:3`).
+- Light inspection confirms fullstack structure: backend routes (`repo/route/app.php`) + web frontend modules (`repo/public/static/js/`).
 
 ## Backend Endpoint Inventory
-Source of truth: `repo/route/app.php:6` through `repo/route/app.php:89`.
+Source: `repo/route/app.php:6-89`
 
-Total endpoints discovered: **52** (unique `METHOD + PATH`).
+Total endpoints: **52**
 
-1. `GET /health`
-2. `GET /`
-3. `GET /auth/captcha`
-4. `POST /auth/register`
-5. `POST /auth/login`
-6. `POST /auth/logout`
-7. `GET /auth/me`
-8. `POST /auth/mfa/enroll`
-9. `POST /auth/mfa/verify`
-10. `POST /admin/users`
-11. `GET /entities/field-definitions`
-12. `POST /entities/:id/merge`
-13. `GET /entities/:id`
-14. `PATCH /entities/:id`
-15. `GET /entities`
-16. `POST /entities`
-17. `POST /admin/verifications/:id/approve`
-18. `POST /admin/verifications/:id/reject`
-19. `GET /verifications/mine`
-20. `POST /verifications`
-21. `GET /verifications`
-22. `GET /contracts/:id`
-23. `GET /contracts`
-24. `POST /contracts`
-25. `GET /invoices/:id/receipt`
-26. `GET /invoices/:id`
-27. `GET /invoices`
-28. `POST /payments`
-29. `POST /refunds`
-30. `GET /exports/ledger`
-31. `GET /exports/reconciliation`
-32. `GET /conversations/:id/messages`
-33. `GET /conversations`
-34. `POST /conversations`
-35. `POST /messages/preflight-risk`
-36. `POST /messages`
-37. `PATCH /messages/:id/recall`
-38. `POST /messages/:id/report`
-39. `GET /attachments/:id`
-40. `GET /admin/risk-keywords`
-41. `POST /admin/risk-keywords`
-42. `PATCH /admin/risk-keywords/:id`
-43. `DELETE /admin/risk-keywords/:id`
-44. `GET /audit-logs`
-45. `POST /delegations/:id/approve`
-46. `GET /delegations`
-47. `POST /delegations`
-48. `GET /api/docs`
-49. `GET /admin/jobs`
-50. `POST /admin/jobs/run`
-51. `GET /admin/config`
-52. `PATCH /admin/config/:key`
+`GET /health`, `GET /`, `GET /auth/captcha`, `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/mfa/enroll`, `POST /auth/mfa/verify`, `POST /admin/users`, `GET /entities/field-definitions`, `POST /entities/:id/merge`, `GET /entities/:id`, `PATCH /entities/:id`, `GET /entities`, `POST /entities`, `POST /admin/verifications/:id/approve`, `POST /admin/verifications/:id/reject`, `GET /verifications/mine`, `POST /verifications`, `GET /verifications`, `GET /contracts/:id`, `GET /contracts`, `POST /contracts`, `GET /invoices/:id/receipt`, `GET /invoices/:id`, `GET /invoices`, `POST /payments`, `POST /refunds`, `GET /exports/ledger`, `GET /exports/reconciliation`, `GET /conversations/:id/messages`, `GET /conversations`, `POST /conversations`, `POST /messages/preflight-risk`, `POST /messages`, `PATCH /messages/:id/recall`, `POST /messages/:id/report`, `GET /attachments/:id`, `GET /admin/risk-keywords`, `POST /admin/risk-keywords`, `PATCH /admin/risk-keywords/:id`, `DELETE /admin/risk-keywords/:id`, `GET /audit-logs`, `POST /delegations/:id/approve`, `GET /delegations`, `POST /delegations`, `GET /api/docs`, `GET /admin/jobs`, `POST /admin/jobs/run`, `GET /admin/config`, `PATCH /admin/config/:key`.
 
 ## API Test Mapping Table
 
-| Endpoint | Covered | Test Type | Test Files | Evidence |
+| Endpoint | Covered | Test type | Test file(s) | Evidence |
 |---|---|---|---|---|
 | `GET /health` | yes | true no-mock HTTP | `tests/unit/HealthEndpointTest.php` | `testHealthReturnsOkStatus` (`repo/tests/unit/HealthEndpointTest.php:24`) |
-| `GET /` | no | none | none | no matching request found in `tests/` |
+| `GET /` | yes | true no-mock HTTP | `tests/api/RootAndVerificationListTest.php` | `testRootRedirectsToStaticIndex` (`repo/tests/api/RootAndVerificationListTest.php:32`) |
 | `GET /auth/captcha` | yes | true no-mock HTTP | `tests/api/EndpointCoverageTest.php` | `testCaptchaEndpointReturnsChallenge` (`repo/tests/api/EndpointCoverageTest.php:272`) |
 | `POST /auth/register` | yes | true no-mock HTTP | `tests/api/AuthFlowTest.php` | `testCompleteAuthFlow` (`repo/tests/api/AuthFlowTest.php:24`) |
 | `POST /auth/login` | yes | true no-mock HTTP | `tests/api/AuthFlowTest.php` | `testCompleteAuthFlow` (`repo/tests/api/AuthFlowTest.php:24`) |
@@ -89,7 +37,7 @@ Total endpoints discovered: **52** (unique `METHOD + PATH`).
 | `POST /admin/verifications/:id/reject` | yes | true no-mock HTTP | `tests/api/VerificationUserFlowTest.php` | `testSubmitAndRejectShowsReason` (`repo/tests/api/VerificationUserFlowTest.php:69`) |
 | `GET /verifications/mine` | yes | true no-mock HTTP | `tests/api/VerificationUserFlowTest.php` | `testSubmitAndApproveFlow` (`repo/tests/api/VerificationUserFlowTest.php:33`) |
 | `POST /verifications` | yes | true no-mock HTTP | `tests/api/VerificationUserFlowTest.php` | `testSubmitAndApproveFlow` (`repo/tests/api/VerificationUserFlowTest.php:33`) |
-| `GET /verifications` | no | none | none | no matching `GET /verifications` request found in `tests/` |
+| `GET /verifications` | yes | true no-mock HTTP | `tests/api/RootAndVerificationListTest.php` | `testAdminCanListVerifications` (`repo/tests/api/RootAndVerificationListTest.php:60`) |
 | `GET /contracts/:id` | yes | true no-mock HTTP | `tests/unit/InvoiceStateMachineTest.php` | `testContractDetailHasInvoices` (`repo/tests/unit/InvoiceStateMachineTest.php:49`) |
 | `GET /contracts` | yes | true no-mock HTTP | `tests/api/EndpointCoverageTest.php` | `testContractListHappyPath` (`repo/tests/api/EndpointCoverageTest.php:235`) |
 | `POST /contracts` | yes | true no-mock HTTP | `tests/unit/InvoiceStateMachineTest.php` | `testScheduleGenerationMonthly` (`repo/tests/unit/InvoiceStateMachineTest.php:25`) |
@@ -102,12 +50,12 @@ Total endpoints discovered: **52** (unique `METHOD + PATH`).
 | `GET /exports/reconciliation` | yes | true no-mock HTTP | `tests/api/EndpointCoverageTest.php` | `testExportReconciliationReturnsCsv` (`repo/tests/api/EndpointCoverageTest.php:104`) |
 | `GET /conversations/:id/messages` | yes | true no-mock HTTP | `tests/api/EndpointCoverageTest.php` | `testConversationMessagesHappyPath` (`repo/tests/api/EndpointCoverageTest.php:121`) |
 | `GET /conversations` | yes | true no-mock HTTP | `tests/api/EndpointCoverageTest.php` | `testConversationListHappyPath` (`repo/tests/api/EndpointCoverageTest.php:254`) |
-| `POST /conversations` | yes | true no-mock HTTP | `tests/unit/RiskDetectionTest.php` | `setUp` (`repo/tests/unit/RiskDetectionTest.php:17`) |
+| `POST /conversations` | yes | true no-mock HTTP | `tests/api/DelegationUiFrontendTest.php` | `testConversationPanelWiring` (`repo/tests/api/DelegationUiFrontendTest.php:58`) |
 | `POST /messages/preflight-risk` | yes | true no-mock HTTP | `tests/api/PreflightRiskTest.php` | `testRequiresAuth` (`repo/tests/api/PreflightRiskTest.php:42`) |
 | `POST /messages` | yes | true no-mock HTTP | `tests/unit/RiskDetectionTest.php` | `testCleanMessageAllowed` (`repo/tests/unit/RiskDetectionTest.php:29`) |
 | `PATCH /messages/:id/recall` | yes | true no-mock HTTP | `tests/unit/RiskDetectionTest.php` | `testRecallWithinWindow` (`repo/tests/unit/RiskDetectionTest.php:62`) |
-| `POST /messages/:id/report` | yes | true no-mock HTTP | `tests/unit/RiskDetectionTest.php` | `testReportMessage` (`repo/tests/unit/RiskDetectionTest.php:84`) |
-| `GET /attachments/:id` | yes | true no-mock HTTP | `tests/api/AttachmentRetrievalTest.php` | `testDownloadAttachmentOwnerCanAccess` (`repo/tests/api/AttachmentRetrievalTest.php:75`) |
+| `POST /messages/:id/report` | yes | true no-mock HTTP | `tests/api/MessageReportAuthTest.php` | `testSameScopeUserCanReportMessage` (`repo/tests/api/MessageReportAuthTest.php:39`) |
+| `GET /attachments/:id` | yes | true no-mock HTTP | `tests/api/AttachmentRetrievalTest.php` | `testNonExistentAttachmentReturns404` (`repo/tests/api/AttachmentRetrievalTest.php:42`) |
 | `GET /admin/risk-keywords` | yes | true no-mock HTTP | `tests/api/EndpointCoverageTest.php` | `testListRiskKeywords` (`repo/tests/api/EndpointCoverageTest.php:155`) |
 | `POST /admin/risk-keywords` | yes | true no-mock HTTP | `tests/api/EndpointCoverageTest.php` | `testCreateRiskKeyword` (`repo/tests/api/EndpointCoverageTest.php:171`) |
 | `PATCH /admin/risk-keywords/:id` | yes | true no-mock HTTP | `tests/api/EndpointCoverageTest.php` | `testUpdateRiskKeyword` (`repo/tests/api/EndpointCoverageTest.php:182`) |
@@ -124,133 +72,116 @@ Total endpoints discovered: **52** (unique `METHOD + PATH`).
 
 ## API Test Classification
 
-### 1) True No-Mock HTTP
-- Evidence of real HTTP layer: repeated `curl_init($this->baseUrl . ...)` in API tests, e.g. `repo/tests/api/AuthFlowTest.php:196`, `repo/tests/api/EndpointCoverageTest.php:304`.
-- Test files in this class: all `tests/api/*.php` (36 files), plus several `tests/unit/*.php` that still hit HTTP endpoints (e.g. `repo/tests/unit/JobsTest.php`, `repo/tests/unit/VerificationTest.php`, `repo/tests/unit/InvoiceStateMachineTest.php`).
+1. **True No-Mock HTTP**
+- API/HTTP behavior is exercised through real request calls (`curl_init` + real paths), e.g. `repo/tests/api/AuthFlowTest.php:196`, `repo/tests/api/RootAndVerificationListTest.php:36`.
+- Endpoint coverage class: 52/52 endpoints are covered by this category.
 
-### 2) HTTP with Mocking
-- **None found** by static scan.
+2. **HTTP with Mocking**
+- None detected for API route execution paths.
 
-### 3) Non-HTTP (unit/integration without HTTP)
-- `repo/tests/unit/LateFeeTest.php` (direct `LateFeeService::calculate` calls).
-- `repo/tests/unit/EncryptionKeyGuardTest.php` (direct `EncryptionService` calls).
-- `repo/tests/unit/LogLeakageTest.php` (direct `LogService::info` and log file inspection).
+3. **Non-HTTP (unit/integration without HTTP)**
+- Direct service/file tests exist (examples): `repo/tests/unit/LateFeeTest.php`, `repo/tests/unit/EncryptionKeyGuardTest.php`, `repo/tests/unit/LogLeakageTest.php`.
+- Frontend JS unit tests run without live HTTP transport (Vitest + happy-dom): `repo/tests/frontend/*.test.js`.
 
 ## Mock Detection
-- `jest.mock`, `vi.mock`, `sinon.stub`: **not found** (scan across `repo/tests/**/*.php`).
-- PHPUnit mocking primitives (`createMock`, `createStub`, `getMockBuilder`, `expects`): **not found**.
-- DI override patterns in tests: **not found**.
-- Direct controller invocation in tests: **not found**.
-- Note: some tests seed data directly via PDO (`repo/tests/AdminBootstrap.php:45`, `repo/tests/api/PrivilegeEscalationTest.php:130`), but this is setup/seeding, not transport or service mocking.
+- Scan patterns `jest.mock`, `vi.mock`, `sinon.stub`, PHPUnit mock builders: not found in route-level API tests.
+- API-route execution-path mocking evidence: none.
+- Direct DB seed/setup usage exists (not mocks): `repo/tests/AdminBootstrap.php:45`, `repo/tests/api/PrivilegeEscalationTest.php:130`.
 
 ## Coverage Summary
-- Total endpoints: **52**.
-- Endpoints with HTTP tests: **50**.
-- Endpoints with true no-mock HTTP tests: **50**.
-- Uncovered endpoints: `GET /`, `GET /verifications`.
-- HTTP coverage: **96.2%** (`50/52`).
-- True API coverage: **96.2%** (`50/52`).
+- Total endpoints: **52**
+- Endpoints with HTTP tests: **52**
+- Endpoints with true no-mock tests: **52**
+- HTTP coverage: **100%**
+- True API coverage: **100%**
 
 ## Unit Test Summary
 
 ### Backend Unit Tests
-- Unit test files detected: 14 files under `repo/tests/unit/`.
-- Controllers covered (via HTTP): Auth, Verification, Admin, Contract, Invoice, Payment, Message, Audit, Health (examples: `repo/tests/unit/VerificationTest.php`, `repo/tests/unit/JobsTest.php`, `repo/tests/unit/HealthEndpointTest.php`).
-- Services covered directly: `EncryptionService`, `LateFeeService`, `LogService` (evidence: `repo/tests/unit/EncryptionKeyGuardTest.php:7`, `repo/tests/unit/LateFeeTest.php:7`, `repo/tests/unit/LogLeakageTest.php:7`).
-- Auth/guards/middleware covered: lockout/auth (`repo/tests/unit/LockoutTest.php`), trace-id middleware behavior (`repo/tests/unit/TraceIdTest.php`), auth gate via admin endpoints (`repo/tests/unit/SecurityTest.php:45`).
-- Repositories explicitly tested: no dedicated repository-layer tests found (no repository test files and no repository namespace imports in unit tests).
-- Important backend modules not directly unit-tested (service-level direct tests absent): `AuthService`, `CaptchaService`, `ContractService`, `DelegationService`, `DuplicateService`, `EntityService`, `ExportService`, `InvoiceService`, `JobService`, `MessagingService`, `MfaService`, `PaymentService`, `RefundService`, `RiskService`, `ScopeService`, `TokenService`, `VerificationService` (these are exercised mostly through HTTP/integration, not isolated unit tests).
+- Unit files present in `repo/tests/unit/`: **14**.
+- Covered modules include controllers via HTTP (`Auth`, `Admin`, `Verification`, `Invoice`, `Contract`, `Payment`, `Message`, `Health`) and direct services (`EncryptionService`, `LateFeeService`, `LogService`).
+- Repositories are not explicitly unit-tested as a separate layer (no dedicated repository tests found).
+- Important backend modules without clear direct unit-level isolation still include: `AuthService`, `CaptchaService`, `ContractService`, `DelegationService`, `DuplicateService`, `EntityService`, `ExportService`, `InvoiceService`, `JobService`, `MessagingService`, `MfaService`, `PaymentService`, `RefundService`, `RiskService`, `ScopeService`, `TokenService`, `VerificationService` (many are integration-tested via HTTP instead).
 
 ### Frontend Unit Tests (STRICT REQUIREMENT)
-- Frontend test files with JS/TS unit naming (`*.test.*`, `*.spec.*`): **NONE** (scan: `repo/**/*.test.{js,jsx,ts,tsx}`, `repo/**/*.spec.{js,jsx,ts,tsx}`).
-- Framework/tool evidence for frontend unit testing (Jest/Vitest/RTL/etc): **NONE** in frontend test files (because files are absent).
-- Frontend components/modules covered by frontend unit tests: **NONE**.
-- Important frontend components/modules not unit-tested: `public/static/js/api-client.js`, `public/static/js/app.js`, `public/static/js/auth.js`, `public/static/js/entities.js`, `public/static/js/finance.js`, `public/static/js/messaging.js`, `public/static/js/admin.js`, plus pages `public/static/index.html`, `public/static/login.html`, `public/static/register.html`.
-- Existing frontend-related tests are HTTP/static asset assertions in PHP (examples: `repo/tests/api/FrontendIntegrationTest.php`, `repo/tests/api/FrontendModuleCoverageTest.php`), not frontend unit tests.
+- Frontend unit files detected:
+  - `repo/tests/frontend/api-client.test.js`
+  - `repo/tests/frontend/app.test.js`
+  - `repo/tests/frontend/auth.test.js`
+  - `repo/tests/frontend/entities.test.js`
+  - `repo/tests/frontend/finance.test.js`
+  - `repo/tests/frontend/messaging.test.js`
+  - `repo/tests/frontend/admin.test.js`
+- Framework/tooling detected: Vitest + happy-dom (`repo/package.json:7-13`, `repo/vitest.config.js:1-9`).
+- Tests execute real frontend modules from `public/static/js` via loader (`repo/tests/frontend/loadModule.js:35`) and per-module calls (`repo/tests/frontend/api-client.test.js:34`, `repo/tests/frontend/app.test.js:40`, `repo/tests/frontend/auth.test.js:45`, `repo/tests/frontend/entities.test.js:55`, `repo/tests/frontend/finance.test.js:45`, `repo/tests/frontend/messaging.test.js:52`, `repo/tests/frontend/admin.test.js:37`).
+- Components/modules covered: `api-client.js`, `app.js`, `auth.js`, `entities.js`, `finance.js`, `messaging.js`, `admin.js`.
+- Important frontend components/modules not tested: no major untested JS module under `repo/public/static/js/`.
 
-**Frontend unit tests: MISSING**
-
-**CRITICAL GAP** (fullstack project + missing frontend unit tests under strict detection rules).
+**Frontend unit tests: PRESENT**
 
 ### Cross-Layer Observation
-- Backend/API tests are extensive and mostly route-level.
-- Frontend testing is backend-driven static-content verification, with no JS unit/component test suite.
-- Result: **backend-heavy test strategy with frontend unit-testing absence**.
+- Backend API coverage is full at route level.
+- Frontend now has explicit JS unit tests for all seven core modules.
+- Balance is improved vs prior backend-heavy state.
 
 ## API Observability Check
-- Strong observability in many API tests: explicit method/path/input/expected response fields (e.g. `repo/tests/api/AuthFlowTest.php:24`, `repo/tests/api/VerificationUserFlowTest.php:33`).
-- Weak spots: some tests assert mainly status code with limited payload semantics (e.g. several denial-path tests in `repo/tests/api/EndpointCoverageTest.php` and `repo/tests/api/DelegationWorkflowTest.php`).
-- Overall observability rating: **moderate-strong**, with localized weak assertions.
+- Endpoint + input + response assertions are explicit in most API tests (e.g. `repo/tests/api/AuthFlowTest.php`, `repo/tests/api/VerificationUserFlowTest.php`, `repo/tests/api/RootAndVerificationListTest.php`).
+- Some tests remain status-centric on negative paths, but overall observability is strong.
 
 ## Tests Check
-- `run_tests.sh` is Docker-based orchestrated execution (`docker compose ...`) and runs tests inside container (`repo/run_tests.sh:20`, `repo/run_tests.sh:54`, `repo/run_tests.sh:60`) -> **OK**.
-- No host-side package manager installs required by script -> **OK**.
+- `run_tests.sh` remains Docker-based orchestration (`repo/run_tests.sh:20-61`) -> acceptable for backend tests.
+- Frontend unit tests are documented/run via Node tooling (`repo/package.json`, `repo/tests/frontend/*.test.js`).
 
-## End-to-End Expectations (Fullstack)
-- Expected: real FE↔BE end-to-end tests.
-- Found: no browser-level E2E flow tests; only API HTTP tests and static frontend asset/content checks.
-- Compensation: strong API HTTP coverage partially compensates, but does not replace FE↔BE runtime interaction coverage.
+## End-to-End Expectations
+- No browser-level FE↔BE E2E suite is visible.
+- This is partially compensated by full API-route tests + frontend unit coverage, but not equivalent to full user-journey E2E.
 
 ## Test Coverage Score (0-100)
-- **78 / 100**
+- **92/100**
 
 ## Score Rationale
-- High route-level HTTP coverage with real HTTP transport and no mocking patterns detected.
-- Two uncovered backend endpoints (`GET /`, `GET /verifications`).
-- Missing frontend unit tests in a fullstack project is a strict critical gap.
-- Limited true end-to-end frontend interaction testing reduces confidence in integrated user flows.
+- Full route coverage with true HTTP transport and no API mocking detected.
+- Frontend unit tests now satisfy strict presence requirements and cover all frontend JS modules.
+- Remaining deduction: no full browser E2E layer and some endpoint checks are shallow on payload semantics.
 
 ## Key Gaps
-- Uncovered endpoints: `GET /`, `GET /verifications`.
-- Frontend unit test suite absent (strict failure for fullstack/web).
-- No browser-driven FE↔BE E2E tests.
+- No dedicated browser E2E tests for fullstack FE↔BE user journeys.
+- Several service classes still rely mostly on HTTP/integration tests instead of isolated unit tests.
 
 ## Confidence & Assumptions
-- Confidence: **high** for static coverage presence/absence; **medium** for behavioral sufficiency.
-- Assumptions: query-string requests counted as coverage for same route path; no runtime execution was performed.
+- Confidence: high for static presence/coverage mapping; medium for runtime sufficiency because tests were not executed.
+- Assumption: dynamic path calls and query variants are valid evidence for parameterized route coverage.
 
 ---
 
 # README Audit
 
-## Hard Gate Evaluation
-
-### Formatting
-- PASS: Markdown is structured and readable (`repo/README.md`).
-
-### Startup Instructions (Backend/Fullstack)
-- FAIL (strict string gate): required literal `docker-compose up` is not present.
-- Found command is `docker compose up --build -d` (`repo/README.md:14`), which is operationally valid but does not satisfy the strict literal requirement.
-
-### Access Method
-- PASS: URL + port provided (`repo/README.md:42` to `repo/README.md:47`).
-
-### Verification Method
-- PASS: clear validation flows via UI walkthrough and API calls (examples: `repo/README.md:50` to `repo/README.md:82`, `repo/README.md:111` to `repo/README.md:134`).
-
-### Environment Rules (Docker-contained, no runtime install steps)
-- PASS: no `npm install`, `pip install`, `apt-get`, or manual DB setup steps documented; Docker-first guidance is explicit (`repo/README.md:23` to `repo/README.md:24`, `repo/README.md:91` to `repo/README.md:99`).
-
-### Demo Credentials (Auth Present)
-- PASS (conditional): auth exists and README provides role matrix with usernames/passwords for all roles (`repo/README.md:140` to `repo/README.md:147`).
-
 ## High Priority Issues
-- README top does not declare project type with required keyword (`backend/fullstack/web/android/ios/desktop`) in opening section.
-- Coverage claim states frontend coverage 100% (`repo/README.md:176`), but strict audit finds frontend unit tests missing.
+- README introduces host-side frontend test install/run instructions using `npm install` (`repo/README.md:28` and `repo/README.md:194`), which violates strict Docker-contained environment rule in this audit policy.
 
 ## Medium Priority Issues
-- Quick-start uses `open` command (`repo/README.md:17`), which is macOS-specific and not portable for Linux shells.
-- Test credentials section mixes “no pre-seeded users” with sample matrix; operational bootstrap path exists but could be clearer about exactly what is pre-created vs user-created.
+- Quick start now mixes Docker-first backend flow with host-side Node workflow, creating operational inconsistency (`repo/README.md:24-29`).
 
 ## Low Priority Issues
-- README is very long and repeats some operational concepts (health/test behavior/bootstrapping), reducing signal density.
+- None significant beyond consistency issue above.
 
 ## Hard Gate Failures
-- Missing strict required startup literal: `docker-compose up`.
+- **Environment Rules (STRICT): FAIL**
+  - Forbidden runtime install command appears: `npm install` (`repo/README.md:28`, `repo/README.md:194`).
+
+## Hard Gate Checks (Other)
+- Formatting/readability: PASS.
+- Startup instruction includes required literal `docker-compose up`: PASS (`repo/README.md:18`).
+- Access method (URL+port): PASS (`repo/README.md:48-54`).
+- Verification method: PASS (`repo/README.md:58-89`, `repo/README.md:119-142`).
+- Demo credentials with auth roles: PASS (`repo/README.md:150-155`).
+- Project type declaration at top: PASS (`repo/README.md:3`).
 
 ## README Verdict
 - **FAIL** (hard gate failure present).
 
+---
+
 ## Final Verdicts
-- Test Coverage Audit verdict: **PARTIAL PASS** (high backend HTTP coverage, but strict critical frontend unit-test gap + 2 uncovered endpoints).
-- README Audit verdict: **FAIL**.
+- **Test Coverage Audit:** PASS (with noted non-blocking gaps).
+- **README Audit:** FAIL.

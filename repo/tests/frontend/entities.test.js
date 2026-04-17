@@ -63,13 +63,13 @@ describe('entities.js', () => {
     });
 
     it('exposes loadEntities, viewEntity, and loadMyVerification on window', () => {
-        expect(typeof globalThis.loadEntities).toBe('function');
-        expect(typeof globalThis.viewEntity).toBe('function');
-        expect(typeof globalThis.loadMyVerification).toBe('function');
+        expect(typeof window.loadEntities).toBe('function');
+        expect(typeof window.viewEntity).toBe('function');
+        expect(typeof window.loadMyVerification).toBe('function');
     });
 
     it('loadEntities calls GET /entities via ApiClient', async () => {
-        globalThis.loadEntities();
+        window.loadEntities();
         expect(globalThis.ApiClient.get).toHaveBeenCalledWith('/entities');
     });
 
