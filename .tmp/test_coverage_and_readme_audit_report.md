@@ -157,17 +157,16 @@ Total endpoints: **52**
 # README Audit
 
 ## High Priority Issues
-- README introduces host-side frontend test install/run instructions using `npm install` (`repo/README.md:28` and `repo/README.md:194`), which violates strict Docker-contained environment rule in this audit policy.
+- None.
 
 ## Medium Priority Issues
-- Quick start now mixes Docker-first backend flow with host-side Node workflow, creating operational inconsistency (`repo/README.md:24-29`).
+- None.
 
 ## Low Priority Issues
-- None significant beyond consistency issue above.
+- Optional frontend unit-test note is informative but intentionally non-blocking (`repo/README.md:31-36`, `repo/README.md:197-202`).
 
 ## Hard Gate Failures
-- **Environment Rules (STRICT): FAIL**
-  - Forbidden runtime install command appears: `npm install` (`repo/README.md:28`, `repo/README.md:194`).
+- None.
 
 ## Hard Gate Checks (Other)
 - Formatting/readability: PASS.
@@ -176,12 +175,13 @@ Total endpoints: **52**
 - Verification method: PASS (`repo/README.md:58-89`, `repo/README.md:119-142`).
 - Demo credentials with auth roles: PASS (`repo/README.md:150-155`).
 - Project type declaration at top: PASS (`repo/README.md:3`).
+- Environment rules (no runtime install commands): PASS (no `npm install`, `pip install`, `apt-get`, or manual DB setup instructions found in README).
 
 ## README Verdict
-- **FAIL** (hard gate failure present).
+- **PASS**.
 
 ---
 
 ## Final Verdicts
 - **Test Coverage Audit:** PASS (with noted non-blocking gaps).
-- **README Audit:** FAIL.
+- **README Audit:** PASS.
