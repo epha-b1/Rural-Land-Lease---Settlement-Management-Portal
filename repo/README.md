@@ -1,5 +1,7 @@
 # Rural Land Lease & Settlement Management Portal
 
+**Project type: fullstack** (ThinkPHP REST API backend + Layui web UI frontend, MySQL persistence).
+
 > A secure, offline-first portal for administering agricultural lease contracts,
 > entity profiles, financial reconciliation, and in-app communications across
 > a county. Built as a ThinkPHP REST API with a Layui web UI, backed by MySQL,
@@ -10,14 +12,20 @@
 ## Quick Start
 
 ```bash
-# 1. Start the stack (API + MySQL) — first run builds images and applies migrations
-docker compose up --build -d
+# 1. Start the stack (API + MySQL) — first run builds images and applies migrations.
+#    Both the modern V2 plugin form and the legacy hyphenated binary are supported:
+docker compose up --build -d         # Docker Compose V2 (plugin)
+# docker-compose up --build -d       # Docker Compose V1 (legacy binary, equivalent)
 
-# 2. Wait ~15 seconds for the health check, then open the portal
-open http://localhost:8000/static/login.html
+# 2. Wait ~15 seconds for the health check, then open the portal in your browser:
+#    http://localhost:8000/static/login.html
+#    (On macOS you can run `open <url>`; on Linux `xdg-open <url>`; Windows `start <url>`.)
 
 # 3. Run the full test suite (unit + API, executed inside the container)
 ./run_tests.sh
+
+# 4. (optional) Run the frontend JS unit tests on the host (Node 18+):
+npm install && npm test
 ```
 
 That's it. No host-side PHP, no manual database setup, no `.env` file to copy.
@@ -172,9 +180,18 @@ mysql -h 127.0.0.1 -P 3307 -u app -papp rural_lease
 
 ### Coverage Snapshot
 
-- **Backend (route coverage):** 100% — every defined route has ≥1 explicit test assertion.
-- **Frontend (module/page coverage):** 100% — every JS module, page section, and HTML page is verified.
-- Reproducible analyzer: `docker compose exec -T api php tools/coverage.php`
+- **Backend (route coverage):** every defined HTTP route has ≥1 real-transport
+  test assertion (no mocks) under `tests/api/` and `tests/unit/`. Reproducible
+  analyzer: `docker compose exec -T api php tools/coverage.php`.
+- **Backend (module/page asset coverage):** every JS module file, page section
+  and HTML page is verified by PHP-based static-content tests under
+  `tests/api/FrontendIntegrationTest.php` and
+  `tests/api/FrontendModuleCoverageTest.php`.
+- **Frontend (JS unit tests):** Vitest + happy-dom unit tests live under
+  `tests/frontend/*.test.js` and exercise the seven Layui modules
+  (`api-client`, `app`, `auth`, `entities`, `finance`, `messaging`, `admin`)
+  directly by loading the real source from `public/static/js/`. Run with
+  `npm install && npm test` on the host.
 
 ## Financial Exports (CSV / XLSX)
 
@@ -406,8 +423,9 @@ repo/
 │   ├── keys/            # Encryption keys (outside web root)
 │   └── tls/             # TLS certs + nginx.conf (for TLS profile)
 ├── tests/
-│   ├── unit/            # Unit tests (in-container)
-│   ├── api/             # API integration tests
+│   ├── unit/            # Backend unit tests (in-container)
+│   ├── api/             # Backend API integration tests (real HTTP, no mocks)
+│   ├── frontend/        # Frontend JS unit tests (Vitest + happy-dom)
 │   └── TestCaptchaHelper.php
 ├── tools/
 │   ├── coverage.php     # Route + frontend coverage analyzer
@@ -417,7 +435,9 @@ repo/
 ├── docker-compose.tls.yml  # Optional TLS intranet overlay
 ├── docker-entrypoint.sh    # Migrations → scheduler → API server
 ├── phpunit.xml
-├── run_tests.sh         # Host-side test orchestrator
+├── run_tests.sh         # Host-side test orchestrator (backend suites)
+├── package.json         # Frontend test tooling (Vitest)
+├── vitest.config.js     # Vitest config for tests/frontend/**
 └── composer.json
 ```
 

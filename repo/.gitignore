@@ -1,0 +1,18 @@
+# Frontend test tooling (installed via `npm install`)
+node_modules/
+
+# ThinkPHP runtime
+runtime/
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/exports/*
+!storage/exports/.gitkeep
+
+# Composer artifacts
+vendor/
+composer.lock
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

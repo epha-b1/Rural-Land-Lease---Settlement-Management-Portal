@@ -1,0 +1,15 @@
+{
+  "name": "rural-lease-portal-frontend-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend unit tests for the Rural Lease Portal Layui modules.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "happy-dom": "^15.11.7",
+    "vitest": "^2.1.8"
+  }
+}
